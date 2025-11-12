@@ -15,6 +15,7 @@ public final class UIPlaylistView: UIView {
     private var statusSubscriptions: Set<AnyCancellable> = []
     private var reachedEndSubscriptions: Set<AnyCancellable> = []
     private var playerTimeSubscription: AnyCancellable?
+    private var itemsSubscription: AnyCancellable?
     private var isPlayingSubscription: AnyCancellable?
     private var progressSubscription: AnyCancellable?
     private var indexSubscription: AnyCancellable?
@@ -34,6 +35,7 @@ public final class UIPlaylistView: UIView {
     
     public var controller: PlaylistController? {
         didSet {
+            subscribeToPlaylistItems()
             initiatePlayers()
             subscribeToIsPlaying()
             subscribeToProgress()
@@ -162,6 +164,28 @@ public final class UIPlaylistView: UIView {
         }
     }
     
+    private func subscribeToPlaylistItems() {
+        itemsSubscription?.cancel()
+        
+        itemsSubscription = controller?.$items
+            .filter { !$0.isEmpty }
+            .debounce(for: 0.1, scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                prepareCurrentPlayer()
+                
+                if !hasBeenPlayedBefore, controller?.isPlaying == true {
+                    currentPlayer?.alpha = 1
+                    prepareRelativePlayers()
+                    hasBeenPlayedBefore = true
+                }
+                
+                if controller?.isPlaying == true {
+                    currentPlayer?.playWhenReady()
+                }
+            }
+    }
+    
     private func subscribeToIsPlaying() {
         isPlayingSubscription?.cancel()
         
@@ -171,7 +195,7 @@ public final class UIPlaylistView: UIView {
             .sink { [weak self] isPlaying in
                 guard let self else { return }
                 
-                if !hasBeenPlayedBefore, isPlaying {
+                if !hasBeenPlayedBefore, isPlaying, controller?.items.isEmpty == false {
                     currentPlayer?.alpha = 1
                     prepareRelativePlayers()
                     hasBeenPlayedBefore = true

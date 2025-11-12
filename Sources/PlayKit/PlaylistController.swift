@@ -9,19 +9,19 @@ import Foundation
 import Combine
 
 public final class PlaylistController: ObservableObject {
-    public let items: [PlaylistItem]
-    internal var backwardBuffer: Int = 1
-    internal var forwardBuffer: Int = 1
-    
+    @Published public internal(set) var items: [PlaylistItem]
     @Published public internal(set) var isPlaying: Bool = false
     @Published public private(set) var currentIndex: Int
 
-    @Published public var status: PlaylistItem.Status = .loading
+    @Published public internal(set) var status: PlaylistItem.Status = .loading
     @Published public internal(set) var progressInSeconds: TimeInterval = .zero
     @Published public internal(set) var durationInSeconds: TimeInterval = .zero
 
     public internal(set) var reachedEnd = PassthroughSubject<Void, Never>()
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
+
+    internal var backwardBuffer: Int = 1
+    internal var forwardBuffer: Int = 1
     
     var rangedItems: [PlaylistItem?] {
         ((currentIndex - backwardBuffer)...(currentIndex + forwardBuffer))
@@ -32,7 +32,7 @@ public final class PlaylistController: ObservableObject {
         rangedItems[safe: backwardBuffer] ?? nil
     }
     
-    public init(items: [PlaylistItem], initialIndex: Int = .zero, isPlaying: Bool = false) {
+    public init(items: [PlaylistItem] = [], initialIndex: Int = .zero, isPlaying: Bool = false) {
         self.items = items
         self.isPlaying = isPlaying
         
@@ -43,17 +43,21 @@ public final class PlaylistController: ObservableObject {
         }
     }
     
+    public func setItems(_ newValue: [PlaylistItem]) {
+        self.items = newValue
+    }
+    
     public func advanceToNext() {
-        currentIndex = min(currentIndex + 1, items.count - 1)
+        self.currentIndex = min(currentIndex + 1, items.count - 1)
     }
     
     public func moveToPrevious() {
-        currentIndex = max(currentIndex - 1, 0)
+        self.currentIndex = max(currentIndex - 1, 0)
     }
     
     public func setCurrentIndex(_ newValue: Int) {
         if items.indices.contains(newValue) {
-            currentIndex = newValue
+            self.currentIndex = newValue
         }
     }
     
@@ -62,10 +66,10 @@ public final class PlaylistController: ObservableObject {
     }
     
     public func play() {
-        isPlaying = true
+        self.isPlaying = true
     }
     
     public func pause() {
-        isPlaying = false
+        self.isPlaying = false
     }
 }

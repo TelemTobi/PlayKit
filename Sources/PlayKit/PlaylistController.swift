@@ -13,7 +13,7 @@ public final class PlaylistController: ObservableObject {
     @Published public internal(set) var isPlaying: Bool = false
     @Published public private(set) var currentIndex: Int
 
-    @Published public internal(set) var status: PlaylistItem.Status = .loading
+    @Published public internal(set) var status: PlaylistItem.Status = .ready
     @Published public internal(set) var progressInSeconds: TimeInterval = .zero
     @Published public internal(set) var durationInSeconds: TimeInterval = .zero
 

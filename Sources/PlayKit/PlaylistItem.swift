@@ -10,6 +10,7 @@ import Foundation
 public enum PlaylistItem: Equatable {
     case image(URL)
     case video(URL)
+    case custom
 }
 
 public extension PlaylistItem {

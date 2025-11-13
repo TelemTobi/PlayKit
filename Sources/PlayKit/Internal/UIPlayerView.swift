@@ -18,7 +18,7 @@ final class UIPlayerView: UIView {
     var nonVideoItemDuration: TimeInterval = 10
     
     private(set) var item: PlaylistItem?
-    private(set) var status = CurrentValueSubject<PlaylistItem.Status, Never>(.loading)
+    private(set) var status = CurrentValueSubject<PlaylistItem.Status, Never>(.ready)
     private(set) var reachedEnd = PassthroughSubject<Void, Never>()
 
     private(set) var durationInSeconds: TimeInterval = .zero
@@ -83,6 +83,10 @@ final class UIPlayerView: UIView {
             registerStatusSubscription()
             registerTimeSubscription()
             registerReachedEndSubscription()
+            
+        case .custom:
+            status.value = .ready
+            break
         }
     }
     
@@ -91,7 +95,7 @@ final class UIPlayerView: UIView {
         case .image:
             runNonVideoTimer()
             
-        case .video, .none:
+        case .video:
             if playerLayer.isReadyForDisplay {
                 player.play()
                 return
@@ -109,6 +113,9 @@ final class UIPlayerView: UIView {
                     }
                 }
             }
+            
+        case .custom, .none:
+            break
         }
     }
     

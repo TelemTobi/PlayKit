@@ -12,6 +12,7 @@ import AVKit
 public final class UIPlaylistView: UIView {
     private var players: [UIPlayerView] = []
     
+    private var lifecyleSubscriptions: Set<AnyCancellable> = []
     private var statusSubscriptions: Set<AnyCancellable> = []
     private var reachedEndSubscriptions: Set<AnyCancellable> = []
     private var playerTimeSubscription: AnyCancellable?
@@ -91,6 +92,22 @@ public final class UIPlaylistView: UIView {
         }
         
         registerPlayerSubscriptions(for: newlyAddedPlayers)
+    }
+    
+    private func registerLifecycleSubscriptions() {
+        NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
+            .sink { [weak self] _ in
+                guard self?.controller?.isPlaying == true else { return }
+                self?.currentPlayer?.pause()
+            }
+            .store(in: &lifecyleSubscriptions)
+        
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                guard self?.controller?.isPlaying == true else { return }
+                self?.currentPlayer?.playWhenReady()
+            }
+            .store(in: &lifecyleSubscriptions)
     }
     
     private func registerAccessLogSubscription() {

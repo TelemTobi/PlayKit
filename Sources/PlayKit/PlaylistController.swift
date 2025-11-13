@@ -59,6 +59,7 @@ public final class PlaylistController: ObservableObject {
     }
     
     public func setCurrentIndex(_ newValue: Int) {
+        guard currentIndex != newValue else { return }
         if items.indices.contains(newValue) {
             self.currentIndex = newValue
         }

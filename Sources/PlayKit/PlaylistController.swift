@@ -36,7 +36,7 @@ public final class PlaylistController: ObservableObject {
         self.items = items
         self.isPlaying = isPlaying
         
-        if items.indices.contains(initialIndex) {
+        if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex
         } else {
             self.currentIndex = .zero
@@ -44,6 +44,9 @@ public final class PlaylistController: ObservableObject {
     }
     
     public func setItems(_ newValue: [PlaylistItem]) {
+        if !newValue.indices.contains(currentIndex) {
+            currentIndex = .zero
+        }
         self.items = newValue
     }
     

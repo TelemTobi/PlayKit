@@ -1,6 +1,6 @@
 //
 //  UIPlayerView.swift
-//  Tryout
+//  PlayKit
 //
 //  Created by Telem Tobi on 06/11/2025.
 //
@@ -15,7 +15,8 @@ final class UIPlayerView: UIView {
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     
     let player = AVPlayer()
-    var nonVideoItemDuration: TimeInterval = 10
+    let imageItemDuration: TimeInterval = 10
+    var rate: Float = 1
     
     private(set) var item: PlaylistItem?
     private(set) var status = CurrentValueSubject<PlaylistItem.Status, Never>(.ready)
@@ -68,7 +69,7 @@ final class UIPlayerView: UIView {
         
         switch item {
         case let.image(url):
-            durationInSeconds = nonVideoItemDuration
+            durationInSeconds = imageItemDuration
             progressInSeconds.value = .zero
             loadImage(from: url)
             
@@ -98,6 +99,7 @@ final class UIPlayerView: UIView {
         case .video:
             if playerLayer.isReadyForDisplay {
                 player.play()
+                player.rate = rate
                 return
                 
             } else if status.value == .error {
@@ -107,9 +109,12 @@ final class UIPlayerView: UIView {
             
             readyObserver = playerLayer.observe(\.isReadyForDisplay, options: [.new]) { [weak self] layer, _ in
                 if layer.isReadyForDisplay {
-                    Task { @MainActor in
+                    Task { @MainActor [weak self] in
+                        guard self?.readyObserver != nil else { return }
+                        
                         self?.readyObserver = nil
                         self?.player.play()
+                        self?.player.rate = self?.rate ?? 1
                     }
                 }
             }
@@ -122,6 +127,8 @@ final class UIPlayerView: UIView {
     func pause() {
         player.pause()
         readyObserver = nil
+        timerSubscription?.cancel()
+        rate = 1
     }
     
     func seekToBeginning() {
@@ -138,9 +145,10 @@ final class UIPlayerView: UIView {
         imageView.image = nil
         progressInSeconds.value = .zero
         durationInSeconds = .zero
+        timerSubscription?.cancel()
     }
     
-    func setVideoGravity(_ gravity: AVLayerVideoGravity) {
+    func setGravity(_ gravity: AVLayerVideoGravity) {
         playerLayer.videoGravity = gravity
         
         imageView.contentMode = switch gravity {
@@ -149,6 +157,11 @@ final class UIPlayerView: UIView {
         case .resizeAspectFill: .scaleAspectFill
         default: .scaleAspectFit
         }
+    }
+    
+    func setRate(_ rate: Float) {
+        self.rate = rate
+        player.rate = rate
     }
 }
 
@@ -167,7 +180,7 @@ extension UIPlayerView {
                     
                 case .failed:
                     self?.status.value = .error
-                    self?.durationInSeconds = self?.nonVideoItemDuration ?? .zero
+                    self?.durationInSeconds = self?.imageItemDuration ?? .zero
                 
                 default:
                     self?.status.value = .loading
@@ -182,7 +195,7 @@ extension UIPlayerView {
         
         let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .global()) { [weak self] time in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.progressInSeconds.value = time.seconds
             }
         }
@@ -221,16 +234,15 @@ extension UIPlayerView {
     
     private func runNonVideoTimer() {
         timerSubscription?.cancel()
-        progressInSeconds.value = .zero
         
         timerSubscription = Timer.publish(every: 0.1, on: .main, in: .default)
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
                 let currentProgress = progressInSeconds.value
-                progressInSeconds.value = currentProgress + 0.1
+                progressInSeconds.value = currentProgress + (0.1 * Double(rate))
                 
-                if progressInSeconds.value >= nonVideoItemDuration {
+                if progressInSeconds.value >= imageItemDuration {
                     reachedEnd.send()
                 }
             }

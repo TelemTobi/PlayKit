@@ -1,6 +1,6 @@
 //
 //  UIPlaylistView.swift
-//  Tryout
+//  PlayKit
 //
 //  Created by Telem Tobi on 06/11/2025.
 //
@@ -14,12 +14,13 @@ public final class UIPlaylistView: UIView {
     
     private var lifecyleSubscriptions: Set<AnyCancellable> = []
     private var statusSubscriptions: Set<AnyCancellable> = []
+    private var playerTimeSubscriptions: Set<AnyCancellable> = []
     private var reachedEndSubscriptions: Set<AnyCancellable> = []
-    private var playerTimeSubscription: AnyCancellable?
     private var itemsSubscription: AnyCancellable?
     private var isPlayingSubscription: AnyCancellable?
     private var progressSubscription: AnyCancellable?
     private var indexSubscription: AnyCancellable?
+    private var rateSubscription: AnyCancellable?
     private var accessLogSubscription: AnyCancellable?
     
     private var hasBeenPlayedBefore: Bool = false
@@ -41,13 +42,14 @@ public final class UIPlaylistView: UIView {
             subscribeToIsPlaying()
             subscribeToProgress()
             subscribeToCurrentIndex()
+            subscribeToRate()
             prepareCurrentPlayer()
         }
     }
     
     public var gravity: AVLayerVideoGravity = .resizeAspect {
         willSet {
-            players.forEach { $0.setVideoGravity(newValue) }
+            players.forEach { $0.setGravity(newValue) }
         }
     }
     
@@ -80,7 +82,8 @@ public final class UIPlaylistView: UIView {
         
         for playerView in newlyAddedPlayers {
             playerView.alpha = .zero
-            playerView.setVideoGravity(gravity)
+            playerView.setGravity(gravity)
+            
             playerView.translatesAutoresizingMaskIntoConstraints = false
             addSubview(playerView)
             NSLayoutConstraint.activate([
@@ -164,6 +167,17 @@ public final class UIPlaylistView: UIView {
                     self?.controller?.status = newStatus
                 }
                 .store(in: &statusSubscriptions)
+            
+            player.progressInSeconds
+                .filter { [weak self] _ in
+                    player == self?.currentPlayer
+                }
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] progress in
+                    self?.controller?.progressInSeconds = progress
+                    self?.controller?.durationInSeconds = self?.currentPlayer?.durationInSeconds ?? .zero
+                }
+                .store(in: &playerTimeSubscriptions)
             
             player.reachedEnd
                 .filter { [weak self] _ in
@@ -253,22 +267,21 @@ public final class UIPlaylistView: UIView {
                 Task { [newIndex] in
                     try? await Task.sleep(interval: 0.1)
                     guard newIndex == self?.controller?.currentIndex else { return }
+                    self?.currentPlayer?.rate = self?.controller?.rate ?? 1
                     self?.currentPlayer?.playWhenReady()
-                    self?.subscribeToCurrentPlayerProgress()
                 }
             }
     }
     
-    private func subscribeToCurrentPlayerProgress() {
-        playerTimeSubscription?.cancel()
+    private func subscribeToRate() {
+        rateSubscription?.cancel()
         
-        playerTimeSubscription = currentPlayer?.progressInSeconds
+        rateSubscription = controller?.$rate
+            .dropFirst()
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] progress in
-                Task { @MainActor in
-                    self?.controller?.progressInSeconds = progress
-                    self?.controller?.durationInSeconds = self?.currentPlayer?.durationInSeconds ?? .zero
-                }
+            .sink { [weak self] rate in
+                self?.currentPlayer?.setRate(rate)
             }
     }
     
@@ -280,7 +293,6 @@ public final class UIPlaylistView: UIView {
     private func prepareCurrentPlayer() {
         if let currentItem = controller?.currentItem {
             currentPlayer?.prepare(item: currentItem, targetSize: bounds.size)
-            subscribeToCurrentPlayerProgress()
         }
     }
     

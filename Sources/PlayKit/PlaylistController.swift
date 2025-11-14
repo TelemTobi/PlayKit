@@ -1,6 +1,6 @@
 //
 //  PlaylistController.swift
-//  Tryout
+//  PlayKit
 //
 //  Created by Telem Tobi on 06/11/2025.
 //
@@ -9,10 +9,11 @@ import Foundation
 import Combine
 
 public final class PlaylistController: ObservableObject {
-    @Published public internal(set) var items: [PlaylistItem]
-    @Published public internal(set) var isPlaying: Bool = false
+    @Published public private(set) var items: [PlaylistItem]
     @Published public private(set) var currentIndex: Int
+    @Published public private(set) var rate: Float = 1
 
+    @Published public internal(set) var isPlaying: Bool = false
     @Published public internal(set) var status: PlaylistItem.Status = .ready
     @Published public internal(set) var progressInSeconds: TimeInterval = .zero
     @Published public internal(set) var durationInSeconds: TimeInterval = .zero
@@ -67,6 +68,14 @@ public final class PlaylistController: ObservableObject {
     
     public func setProgress(_ newValue: TimeInterval) {
         self.progressPublisher.send(newValue)
+    }
+    
+    public func setRate(_ newValue: Float) {
+        self.rate = newValue
+        
+        if newValue > .zero {
+            self.isPlaying = true
+        }
     }
     
     public func play() {

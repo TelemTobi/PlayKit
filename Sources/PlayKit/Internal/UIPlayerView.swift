@@ -12,11 +12,11 @@ import AVKit
 final class UIPlayerView: UIView {
     override static var layerClass: AnyClass { AVPlayerLayer.self }
     
-    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     
-    let player = AVPlayer()
-    let imageItemDuration: TimeInterval = 10
-    var rate: Float = 1
+    private let player = AVPlayer()
+    private let errorDuration: TimeInterval = 10
+    internal var rate: Float = 1
     
     private(set) var item: PlaylistItem?
     private(set) var status = CurrentValueSubject<PlaylistItem.Status, Never>(.ready)
@@ -68,8 +68,8 @@ final class UIPlayerView: UIView {
         guard let item else { return }
         
         switch item {
-        case let.image(url):
-            durationInSeconds = imageItemDuration
+        case let .image(url, duration):
+            durationInSeconds = duration
             progressInSeconds.value = .zero
             loadImage(from: url)
             
@@ -85,7 +85,9 @@ final class UIPlayerView: UIView {
             registerTimeSubscription()
             registerReachedEndSubscription()
             
-        case .custom:
+        case let .custom(duration):
+            durationInSeconds = duration
+            progressInSeconds.value = .zero
             status.value = .ready
             break
         }
@@ -93,8 +95,8 @@ final class UIPlayerView: UIView {
     
     func playWhenReady() {
         switch item {
-        case .image:
-            runNonVideoTimer()
+        case let .image(_, duration):
+            runNonVideoTimer(for: duration)
             
         case .video:
             if playerLayer.isReadyForDisplay {
@@ -103,7 +105,7 @@ final class UIPlayerView: UIView {
                 return
                 
             } else if status.value == .error {
-                runNonVideoTimer()
+                runNonVideoTimer(for: errorDuration)
                 return
             }
             
@@ -119,7 +121,10 @@ final class UIPlayerView: UIView {
                 }
             }
             
-        case .custom, .none:
+        case let .custom(duration):
+            runNonVideoTimer(for: duration)
+            
+        case .none:
             break
         }
     }
@@ -159,6 +164,22 @@ final class UIPlayerView: UIView {
         }
     }
     
+    func setProgress(_ newValue: TimeInterval) {
+        switch item {
+        case .image, .custom:
+            progressInSeconds.value = newValue
+        
+        case .video:
+            Task { [weak self] in
+                let newTime = CMTime(seconds: newValue, preferredTimescale: 600)
+                _ = await self?.player.seek(to: newTime, toleranceBefore: .zero, toleranceAfter: .zero)
+            }
+        
+        case .none:
+            break
+        }
+    }
+    
     func setRate(_ rate: Float) {
         self.rate = rate
         player.rate = rate
@@ -180,7 +201,7 @@ extension UIPlayerView {
                     
                 case .failed:
                     self?.status.value = .error
-                    self?.durationInSeconds = self?.imageItemDuration ?? .zero
+                    self?.durationInSeconds = self?.errorDuration ?? .zero
                 
                 default:
                     self?.status.value = .loading
@@ -232,7 +253,7 @@ extension UIPlayerView {
         }
     }
     
-    private func runNonVideoTimer() {
+    private func runNonVideoTimer(for duration: TimeInterval) {
         timerSubscription?.cancel()
         
         timerSubscription = Timer.publish(every: 0.1, on: .main, in: .default)
@@ -242,7 +263,7 @@ extension UIPlayerView {
                 let currentProgress = progressInSeconds.value
                 progressInSeconds.value = currentProgress + (0.1 * Double(rate))
                 
-                if progressInSeconds.value >= imageItemDuration {
+                if progressInSeconds.value >= duration {
                     reachedEnd.send()
                 }
             }

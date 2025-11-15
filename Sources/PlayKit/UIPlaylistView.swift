@@ -245,10 +245,7 @@ public final class UIPlaylistView: UIView {
         
         progressSubscription = controller?.progressPublisher
             .sink { [weak self] progress in
-                Task {
-                    let newTime = CMTime(seconds: progress, preferredTimescale: 600)
-                    _ = await self?.currentPlayer?.player.seek(to: newTime, toleranceBefore: .zero, toleranceAfter: .zero)
-                }
+                self?.currentPlayer?.setProgress(progress)
             }
     }
     

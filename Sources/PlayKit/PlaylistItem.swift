@@ -8,9 +8,9 @@
 import Foundation
 
 public enum PlaylistItem: Equatable {
-    case image(URL)
+    case image(URL, duration: TimeInterval = 10)
     case video(URL)
-    case custom
+    case custom(duration: TimeInterval)
 }
 
 public extension PlaylistItem {

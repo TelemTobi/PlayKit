@@ -1,0 +1,51 @@
+//
+//  PlayKit.swift
+//  PlayKit
+//
+//  Created by Telem Tobi on 16/11/2025.
+//
+
+import Foundation
+import Combine
+import AVKit
+
+public final class PlayKit {
+    
+    @MainActor
+    public static let shared = PlayKit()
+    
+    public var lastObservedBitrate: Double {
+        _lastObservedBitrate.value
+    }
+    
+    public var bitratePublisher: AnyPublisher<Double, Never> {
+        _lastObservedBitrate.eraseToAnyPublisher()
+    }
+    
+    private let _lastObservedBitrate = CurrentValueSubject<Double, Never>(.zero)
+    private var accessLogSubscription: AnyCancellable?
+    
+    private init() {
+        registerAccessLogSubscription()
+    }
+    
+    private func registerAccessLogSubscription() {
+        accessLogSubscription?.cancel()
+        
+        accessLogSubscription = NotificationCenter.default
+            .publisher(for: AVPlayerItem.newAccessLogEntryNotification)
+            .compactMap { notification -> Double? in
+                guard let lastEvent = (notification.object as? AVPlayerItem)?.accessLog()?.events.last else { return nil }
+                
+                if lastEvent.transferDuration > 0, lastEvent.numberOfBytesTransferred > 0 {
+                    return (Double(lastEvent.numberOfBytesTransferred) * 8.0) / lastEvent.transferDuration
+                }
+                
+                return lastEvent.observedBitrate
+            }
+            .filter { $0 > .zero }
+            .removeDuplicates()
+            .throttle(for: 10, scheduler: DispatchQueue.main, latest: false)
+            .assign(to: \.value, on: _lastObservedBitrate)
+    }
+}

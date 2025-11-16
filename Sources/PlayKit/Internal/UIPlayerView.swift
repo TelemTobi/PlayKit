@@ -76,7 +76,7 @@ final class UIPlayerView: UIView {
         case let .video(url):
             let item = AVPlayerItem(url: url)
             item.preferredMaximumResolution = targetSize
-            item.preferredForwardBufferDuration = 5.0
+            item.preferredForwardBufferDuration = 2.5
             
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true

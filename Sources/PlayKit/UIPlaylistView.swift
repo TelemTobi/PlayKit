@@ -16,12 +16,12 @@ public final class UIPlaylistView: UIView {
     private var statusSubscriptions: Set<AnyCancellable> = []
     private var playerTimeSubscriptions: Set<AnyCancellable> = []
     private var reachedEndSubscriptions: Set<AnyCancellable> = []
+    private var bitrateSubscription: AnyCancellable?
     private var itemsSubscription: AnyCancellable?
     private var isPlayingSubscription: AnyCancellable?
     private var progressSubscription: AnyCancellable?
     private var indexSubscription: AnyCancellable?
     private var rateSubscription: AnyCancellable?
-    private var accessLogSubscription: AnyCancellable?
     
     private var hasBeenPlayedBefore: Bool = false
     
@@ -44,6 +44,7 @@ public final class UIPlaylistView: UIView {
             subscribeToCurrentIndex()
             subscribeToRate()
             prepareCurrentPlayer()
+            calculateBufferWindows()
         }
     }
     
@@ -55,7 +56,7 @@ public final class UIPlaylistView: UIView {
     
     override init(frame: CGRect) {
         super.init(frame: frame)
-        registerAccessLogSubscription()
+        registerBitrateSubscription()
     }
     
     required init?(coder: NSCoder) {
@@ -113,47 +114,41 @@ public final class UIPlaylistView: UIView {
             .store(in: &lifecyleSubscriptions)
     }
     
-    private func registerAccessLogSubscription() {
-        accessLogSubscription?.cancel()
-        accessLogSubscription = NotificationCenter.default
-            .publisher(for: AVPlayerItem.newAccessLogEntryNotification)
-            .compactMap { notification -> Double? in
-                guard let lastEvent = (notification.object as? AVPlayerItem)?.accessLog()?.events.last else { return nil }
-                
-                if lastEvent.transferDuration > 0, lastEvent.numberOfBytesTransferred > 0 {
-                    return (Double(lastEvent.numberOfBytesTransferred) * 8.0) / lastEvent.transferDuration
-                }
-                
-                return lastEvent.observedBitrate
-            }
+    private func registerBitrateSubscription() {
+        bitrateSubscription?.cancel()
+        bitrateSubscription = PlayKit.shared.bitratePublisher
             .filter { $0 > .zero }
-            .removeDuplicates()
-            .throttle(for: 10, scheduler: DispatchQueue.main, latest: false)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] bitrate in
-                guard let self else { return }
-                
-                let newForwardBuffer = Int(bitrate / 1_000_000).clamped(to: 1...5)
-                guard newForwardBuffer != controller?.forwardBuffer else { return }
-                
-                controller?.forwardBuffer = newForwardBuffer
-                
-                let backwardBuffer = controller?.backwardBuffer ?? .zero
-                let forwardBuffer = controller?.forwardBuffer ?? .zero
-                let newPlayersCount = backwardBuffer + forwardBuffer + 1
-                
-                if players.count < newPlayersCount {
-                    appendPlayers(count: newPlayersCount - players.count)
-                } else {
-                    let playersToRemove = players.suffix(players.count - newPlayersCount)
-                    players.removeLast(playersToRemove.count)
-                    for player in playersToRemove {
-                        player.cancel()
-                        player.removeFromSuperview()
-                    }
-                }
-                
-                prepareRelativePlayers()
+                self?.calculateBufferWindows(basedOn: bitrate)
             }
+    }
+    
+    private func calculateBufferWindows(basedOn bitrate: Double? = nil) {
+        let bitrate = bitrate ?? PlayKit.shared.lastObservedBitrate
+        let newForwardBuffer = Int(bitrate / 1_000_000).clamped(to: 1...5)
+        guard newForwardBuffer != controller?.forwardBuffer else { return }
+        
+        controller?.forwardBuffer = newForwardBuffer
+        
+        let backwardBuffer = controller?.backwardBuffer ?? .zero
+        let forwardBuffer = controller?.forwardBuffer ?? .zero
+        let newPlayersCount = backwardBuffer + forwardBuffer + 1
+        
+        if players.count < newPlayersCount {
+            appendPlayers(count: newPlayersCount - players.count)
+        } else {
+            let playersToRemove = players.suffix(players.count - newPlayersCount)
+            players.removeLast(playersToRemove.count)
+            for player in playersToRemove {
+                player.cancel()
+                player.removeFromSuperview()
+            }
+        }
+        
+        if hasBeenPlayedBefore {
+            prepareRelativePlayers()
+        }
     }
     
     private func registerPlayerSubscriptions(for players: [UIPlayerView]) {

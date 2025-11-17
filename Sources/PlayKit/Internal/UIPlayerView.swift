@@ -58,7 +58,7 @@ final class UIPlayerView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func prepare(item: PlaylistItem?, targetSize: CGSize) {
+    func prepare(item: PlaylistItem?) {
         guard item != self.item else { return }
         
         cancel()
@@ -75,9 +75,7 @@ final class UIPlayerView: UIView {
             
         case let .video(url):
             let item = AVPlayerItem(url: url)
-            item.preferredMaximumResolution = targetSize
             item.preferredForwardBufferDuration = 2.5
-            
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
 

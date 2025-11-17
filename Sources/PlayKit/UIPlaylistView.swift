@@ -284,14 +284,14 @@ public final class UIPlaylistView: UIView {
     
     private func prepareCurrentPlayer() {
         if let currentItem = controller?.currentItem {
-            currentPlayer?.prepare(item: currentItem, targetSize: bounds.size)
+            currentPlayer?.prepare(item: currentItem)
         }
     }
     
     private func prepareRelativePlayers() {
         controller?.rangedItems.enumerated().forEach { index, item in
             if item != controller?.currentItem {
-                players[safe: index]?.prepare(item: item, targetSize: bounds.size)
+                players[safe: index]?.prepare(item: item)
             }
         }
     }
@@ -312,7 +312,7 @@ public final class UIPlaylistView: UIView {
                 players.append(contentsOf: playersToReuse)
                 
                 controller?.rangedItems.enumerated().suffix(diff).forEach { index, itemToPrepare in
-                    players[safe: index]?.prepare(item: itemToPrepare, targetSize: bounds.size)
+                    players[safe: index]?.prepare(item: itemToPrepare)
                 }
                 
             } else if diff < 0 { // Moved backward, within buffer range
@@ -321,7 +321,7 @@ public final class UIPlaylistView: UIView {
                 players.insert(contentsOf: playersToReuse, at: .zero)
                 
                 controller?.rangedItems.prefix(abs(diff)).enumerated().forEach { index, itemToPrepare in
-                    players[safe: index]?.prepare(item: itemToPrepare, targetSize: bounds.size)
+                    players[safe: index]?.prepare(item: itemToPrepare)
                 }
             }
         } else {

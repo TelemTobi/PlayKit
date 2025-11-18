@@ -48,7 +48,7 @@ public final class PlayKit {
             .first { $0 > .zero }
         
         let windowedMax = subscription
-            .collect(.byTime(DispatchQueue.global(), .seconds(10)))
+            .collect(.byTime(DispatchQueue.main, .seconds(10)))
             .compactMap { $0.max() }
             .removeDuplicates()
         

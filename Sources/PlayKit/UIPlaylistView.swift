@@ -69,19 +69,18 @@ public final class UIPlaylistView: UIView {
         
         let backwardBuffer = controller?.backwardBuffer ?? .zero
         let forwardBuffer = controller?.forwardBuffer ?? .zero
-        appendPlayers(count: backwardBuffer + forwardBuffer + 1)
+        let newPlayers = createPlayers(count: backwardBuffer + forwardBuffer + 1)
+        players.append(contentsOf: newPlayers)
     }
     
-    private func appendPlayers(count: Int) {
-        var newlyAddedPlayers: [UIPlayerView] = []
+    private func createPlayers(count: Int) -> [UIPlayerView] {
+        var newPlayers: [UIPlayerView] = []
         
         for _ in 0..<count {
-            newlyAddedPlayers.append(UIPlayerView())
+            newPlayers.append(UIPlayerView())
         }
         
-        players.append(contentsOf: newlyAddedPlayers)
-        
-        for playerView in newlyAddedPlayers {
+        for playerView in newPlayers {
             playerView.alpha = .zero
             playerView.setGravity(gravity)
             
@@ -95,7 +94,8 @@ public final class UIPlaylistView: UIView {
             ])
         }
         
-        registerPlayerSubscriptions(for: newlyAddedPlayers)
+        registerPlayerSubscriptions(for: newPlayers)
+        return newPlayers
     }
     
     private func registerLifecycleSubscriptions() {
@@ -127,22 +127,45 @@ public final class UIPlaylistView: UIView {
     private func calculateBufferWindows(basedOn bitrate: Double? = nil) {
         let bitrate = bitrate ?? PlayKit.shared.lastObservedBitrate
         let newForwardBuffer = Int(bitrate / 1_000_000).clamped(to: 1...5)
-        guard newForwardBuffer != controller?.forwardBuffer else { return }
+        let newBackwardBuffer = Int(bitrate / 2_000_000).clamped(to: 1...2)
+
+        if newForwardBuffer != controller?.forwardBuffer {
+            controller?.forwardBuffer = newForwardBuffer
+            
+            let backwardBuffer = controller?.backwardBuffer ?? .zero
+            let forwardBuffer = controller?.forwardBuffer ?? .zero
+            let newPlayersCount = backwardBuffer + forwardBuffer + 1
+            
+            if players.count < newPlayersCount {
+                let newPlayers = createPlayers(count: newPlayersCount - players.count)
+                players.append(contentsOf: newPlayers)
+            } else {
+                let playersToRemove = players.suffix(players.count - newPlayersCount)
+                players.removeLast(playersToRemove.count)
+                for player in playersToRemove {
+                    player.cancel()
+                    player.removeFromSuperview()
+                }
+            }
+        }
         
-        controller?.forwardBuffer = newForwardBuffer
-        
-        let backwardBuffer = controller?.backwardBuffer ?? .zero
-        let forwardBuffer = controller?.forwardBuffer ?? .zero
-        let newPlayersCount = backwardBuffer + forwardBuffer + 1
-        
-        if players.count < newPlayersCount {
-            appendPlayers(count: newPlayersCount - players.count)
-        } else {
-            let playersToRemove = players.suffix(players.count - newPlayersCount)
-            players.removeLast(playersToRemove.count)
-            for player in playersToRemove {
-                player.cancel()
-                player.removeFromSuperview()
+        if newBackwardBuffer != controller?.backwardBuffer {
+            controller?.backwardBuffer = newBackwardBuffer
+            
+            let backwardBuffer = controller?.backwardBuffer ?? .zero
+            let forwardBuffer = controller?.forwardBuffer ?? .zero
+            let newPlayersCount = backwardBuffer + forwardBuffer + 1
+            
+            if players.count < newPlayersCount {
+                let newPlayers = createPlayers(count: newPlayersCount - players.count)
+                players.insert(contentsOf: newPlayers, at: .zero)
+            } else {
+                let playersToRemove = players.prefix(players.count - newPlayersCount)
+                players.removeFirst(playersToRemove.count)
+                for player in playersToRemove {
+                    player.cancel()
+                    player.removeFromSuperview()
+                }
             }
         }
         

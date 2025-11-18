@@ -249,6 +249,7 @@ public final class UIPlaylistView: UIView {
         
         indexSubscription = controller?.$currentIndex
             .dropFirst()
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newIndex in
                 self?.currentPlayer?.pause()

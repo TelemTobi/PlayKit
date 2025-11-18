@@ -32,7 +32,7 @@ public final class PlayKit {
     private func registerAccessLogSubscription() {
         accessLogSubscription?.cancel()
         
-        accessLogSubscription = NotificationCenter.default
+        let subscription = NotificationCenter.default
             .publisher(for: AVPlayerItem.newAccessLogEntryNotification)
             .compactMap { notification -> Double? in
                 guard let lastEvent = (notification.object as? AVPlayerItem)?.accessLog()?.events.last else { return nil }
@@ -43,9 +43,18 @@ public final class PlayKit {
                 
                 return lastEvent.observedBitrate
             }
-            .filter { $0 > .zero }
+        
+        let firstNonZero = subscription
+            .first { $0 > .zero }
+        
+        let windowedMax = subscription
+            .collect(.byTime(DispatchQueue.global(), .seconds(10)))
+            .compactMap { $0.max() }
             .removeDuplicates()
-            .throttle(for: 10, scheduler: DispatchQueue.main, latest: false)
+        
+        accessLogSubscription = firstNonZero
+            .append(windowedMax)
+            .removeDuplicates()
             .assign(to: \.value, on: _lastObservedBitrate)
     }
 }

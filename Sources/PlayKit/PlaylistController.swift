@@ -13,15 +13,15 @@ public final class PlaylistController: ObservableObject {
     @Published public private(set) var currentIndex: Int
     @Published public private(set) var rate: Float = 1
 
-    @Published public var isFocused: Bool = false
-    @Published public internal(set) var isPlaying: Bool = false
     @Published public internal(set) var status: PlaylistItem.Status = .ready
     @Published public internal(set) var progressInSeconds: TimeInterval = .zero
     @Published public internal(set) var durationInSeconds: TimeInterval = .zero
-
     public internal(set) var reachedEnd = PassthroughSubject<Void, Never>()
-    internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
 
+    @Published public var isFocused: Bool = false
+    @Published public var isPlaying: Bool = false
+
+    internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal var backwardBuffer: Int = 1
     internal var forwardBuffer: Int = 1
     

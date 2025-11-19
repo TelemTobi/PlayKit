@@ -19,11 +19,10 @@ public final class UIPlaylistView: UIView {
     private var bitrateSubscription: AnyCancellable?
     private var itemsSubscription: AnyCancellable?
     private var isPlayingSubscription: AnyCancellable?
+    private var isFocusedSubscription: AnyCancellable?
     private var progressSubscription: AnyCancellable?
     private var indexSubscription: AnyCancellable?
     private var rateSubscription: AnyCancellable?
-    
-    private var hasBeenPlayedBefore: Bool = false
     
     private var currentPlayer: UIPlayerView? {
         guard let backwardBuffer = controller?.backwardBuffer else { return nil }
@@ -40,6 +39,7 @@ public final class UIPlaylistView: UIView {
             subscribeToPlaylistItems()
             initiatePlayers()
             subscribeToIsPlaying()
+            subscribeToIsFocused()
             subscribeToProgress()
             subscribeToCurrentIndex()
             subscribeToRate()
@@ -169,7 +169,7 @@ public final class UIPlaylistView: UIView {
             }
         }
         
-        if hasBeenPlayedBefore {
+        if controller?.isFocused == true {
             prepareRelativePlayers()
         }
     }
@@ -223,10 +223,10 @@ public final class UIPlaylistView: UIView {
                 guard let self else { return }
                 prepareCurrentPlayer()
                 
-                if !hasBeenPlayedBefore, controller?.isPlaying == true {
+                if controller?.isFocused == true {
+                    controller?.isPlaying = true
                     currentPlayer?.alpha = 1
                     prepareRelativePlayers()
-                    hasBeenPlayedBefore = true
                 }
                 
                 if controller?.isPlaying == true {
@@ -242,18 +242,30 @@ public final class UIPlaylistView: UIView {
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isPlaying in
-                guard let self else { return }
-                
-                if !hasBeenPlayedBefore, isPlaying, controller?.items.isEmpty == false {
-                    currentPlayer?.alpha = 1
-                    prepareRelativePlayers()
-                    hasBeenPlayedBefore = true
-                }
-                
                 if isPlaying {
-                    currentPlayer?.playWhenReady()
+                    self?.currentPlayer?.playWhenReady()
                 } else {
-                    currentPlayer?.pause()
+                    self?.currentPlayer?.pause()
+                }
+            }
+    }
+    
+    private func subscribeToIsFocused() {
+        isFocusedSubscription?.cancel()
+        
+        isFocusedSubscription = controller?.$isFocused
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isFocused in
+                self?.controller?.isPlaying = isFocused
+                guard self?.controller?.items.isEmpty == false else { return }
+                
+                if isFocused {
+                    self?.currentPlayer?.alpha = 1
+                    self?.prepareRelativePlayers()
+                } else {
+                    self?.cancelRelativePlayers()
+                    self?.controller?.setProgress(.zero)
                 }
             }
     }
@@ -316,6 +328,14 @@ public final class UIPlaylistView: UIView {
         controller?.rangedItems.enumerated().forEach { index, item in
             if item != controller?.currentItem {
                 players[safe: index]?.prepare(item: item)
+            }
+        }
+    }
+    
+    private func cancelRelativePlayers() {
+        controller?.rangedItems.enumerated().forEach { index, item in
+            if item != controller?.currentItem {
+                players[safe: index]?.cancel()
             }
         }
     }

@@ -13,6 +13,7 @@ public final class PlaylistController: ObservableObject {
     @Published public private(set) var currentIndex: Int
     @Published public private(set) var rate: Float = 1
 
+    @Published public var isFocused: Bool = false
     @Published public internal(set) var isPlaying: Bool = false
     @Published public internal(set) var status: PlaylistItem.Status = .ready
     @Published public internal(set) var progressInSeconds: TimeInterval = .zero
@@ -33,15 +34,19 @@ public final class PlaylistController: ObservableObject {
         rangedItems[safe: backwardBuffer] ?? nil
     }
     
-    public init(items: [PlaylistItem] = [], initialIndex: Int = .zero, isPlaying: Bool = false) {
+    public init(items: [PlaylistItem] = [], initialIndex: Int = .zero, isFocused: Bool = false) {
         self.items = items
-        self.isPlaying = isPlaying
+        self.isFocused = isFocused
         
         if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex
         } else {
             self.currentIndex = .zero
         }
+    }
+    
+    public func setIsFocused(_ newValue: Bool) {
+        self.isFocused = newValue
     }
     
     public func setItems(_ newValue: [PlaylistItem]) {

@@ -50,6 +50,7 @@ public final class PlayKit {
         let windowedMax = subscription
             .collect(.byTime(DispatchQueue.main, .seconds(10)))
             .compactMap { $0.max() }
+            .filter { $0 > .zero }
             .removeDuplicates()
         
         accessLogSubscription = firstNonZero

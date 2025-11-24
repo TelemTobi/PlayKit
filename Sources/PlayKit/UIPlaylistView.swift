@@ -57,6 +57,7 @@ public final class UIPlaylistView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         registerBitrateSubscription()
+        registerLifecycleSubscriptions()
     }
     
     required init?(coder: NSCoder) {

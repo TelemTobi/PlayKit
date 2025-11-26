@@ -87,7 +87,11 @@ final class UIPlayerView: UIView {
             durationInSeconds = duration
             progressInSeconds.value = .zero
             status.value = .ready
-            break
+            
+        case let .error(duration):
+            durationInSeconds = duration
+            progressInSeconds.value = .zero
+            status.value = .error
         }
     }
     
@@ -119,7 +123,7 @@ final class UIPlayerView: UIView {
                 }
             }
             
-        case let .custom(duration):
+        case let .custom(duration), let .error(duration):
             runNonVideoTimer(for: duration)
             
         case .none:
@@ -164,7 +168,7 @@ final class UIPlayerView: UIView {
     
     func setProgress(_ newValue: TimeInterval) {
         switch item {
-        case .image, .custom:
+        case .image, .custom, .error:
             progressInSeconds.value = newValue
         
         case .video:

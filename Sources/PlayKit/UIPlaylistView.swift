@@ -330,7 +330,7 @@ public final class UIPlaylistView: UIView {
     
     private func prepareRelativePlayers() {
         controller?.rangedItems.enumerated().forEach { index, item in
-            if item != controller?.currentItem {
+            if item != controller?.currentItem || item == .error {
                 players[safe: index]?.prepare(item: item)
             }
         }

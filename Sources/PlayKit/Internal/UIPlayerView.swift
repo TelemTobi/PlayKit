@@ -15,7 +15,7 @@ final class UIPlayerView: UIView {
     private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     
     private let player = AVPlayer()
-    private let errorDuration: TimeInterval = 10
+    private let errorDuration: TimeInterval = 5
     internal var rate: Float = 1
     
     private(set) var item: PlaylistItem?
@@ -59,7 +59,7 @@ final class UIPlayerView: UIView {
     }
     
     func prepare(item: PlaylistItem?) {
-        guard item != self.item else { return }
+        guard item != self.item || item == .error else { return }
         
         cancel()
         self.item = item
@@ -88,8 +88,8 @@ final class UIPlayerView: UIView {
             progressInSeconds.value = .zero
             status.value = .ready
             
-        case let .error(duration):
-            durationInSeconds = duration
+        case .error:
+            durationInSeconds = errorDuration
             progressInSeconds.value = .zero
             status.value = .error
         }
@@ -97,7 +97,7 @@ final class UIPlayerView: UIView {
     
     func playWhenReady() {
         switch item {
-        case let .image(_, duration):
+        case let .image(_, duration), let .custom(duration):
             runNonVideoTimer(for: duration)
             
         case .video:
@@ -123,8 +123,8 @@ final class UIPlayerView: UIView {
                 }
             }
             
-        case let .custom(duration), let .error(duration):
-            runNonVideoTimer(for: duration)
+        case .error:
+            runNonVideoTimer(for: errorDuration)
             
         case .none:
             break

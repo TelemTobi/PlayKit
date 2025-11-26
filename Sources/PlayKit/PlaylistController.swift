@@ -23,7 +23,7 @@ public final class PlaylistController: ObservableObject {
 
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal var backwardBuffer: Int = 1
-    internal var forwardBuffer: Int = 1
+    internal var forwardBuffer: Int = 3
     
     var rangedItems: [PlaylistItem?] {
         ((currentIndex - backwardBuffer)...(currentIndex + forwardBuffer))

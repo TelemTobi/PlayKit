@@ -294,7 +294,9 @@ public final class UIPlaylistView: UIView {
                 
                 Task { [newIndex] in
                     try? await Task.sleep(interval: 0.1)
-                    guard newIndex == self?.controller?.currentIndex else { return }
+                    guard newIndex == self?.controller?.currentIndex,
+                          self?.controller?.isPlaying == true else { return }
+                    
                     self?.currentPlayer?.rate = self?.controller?.rate ?? 1
                     self?.currentPlayer?.playWhenReady()
                 }

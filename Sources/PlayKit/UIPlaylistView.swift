@@ -292,10 +292,6 @@ public final class UIPlaylistView: UIView {
                 self?.updatePlayers()
                 self?.transitionToCurrentPlayer()
                 
-                if self?.controller?.isFocused == true {
-                    self?.controller?.isPlaying = true
-                }
-                
                 Task { [newIndex] in
                     try? await Task.sleep(interval: 0.1)
                     guard newIndex == self?.controller?.currentIndex else { return }

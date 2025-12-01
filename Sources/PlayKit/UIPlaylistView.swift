@@ -127,8 +127,8 @@ public final class UIPlaylistView: UIView {
     
     private func calculateBufferWindows(basedOn bitrate: Double? = nil) {
         let bitrate = bitrate ?? PlayKit.shared.lastObservedBitrate
-        let newForwardBuffer = Int(bitrate / 1_000_000).clamped(to: 1...5)
-        let newBackwardBuffer = Int(bitrate / 2_000_000).clamped(to: 1...2)
+        let newForwardBuffer = Int(bitrate / 500_000).clamped(to: 2...5)
+        let newBackwardBuffer = Int(bitrate / 1_000_000).clamped(to: 1...2)
 
         if newForwardBuffer != controller?.forwardBuffer {
             controller?.forwardBuffer = newForwardBuffer

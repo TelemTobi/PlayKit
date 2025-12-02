@@ -44,7 +44,7 @@ public final class UIPlaylistView: UIView {
             subscribeToCurrentIndex()
             subscribeToRate()
             prepareCurrentPlayer()
-            calculateBufferWindows()
+//            calculateBufferWindows()
         }
     }
     

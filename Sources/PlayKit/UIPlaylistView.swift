@@ -121,7 +121,7 @@ public final class UIPlaylistView: UIView {
             .filter { $0 > .zero }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] bitrate in
-                self?.calculateBufferWindows(basedOn: bitrate)
+//                self?.calculateBufferWindows(basedOn: bitrate)
             }
     }
     

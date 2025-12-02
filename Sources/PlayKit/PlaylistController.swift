@@ -22,8 +22,8 @@ public final class PlaylistController: ObservableObject {
     @Published public var isPlaying: Bool = false
 
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
-    internal var backwardBuffer: Int = 1
-    internal var forwardBuffer: Int = 3
+    internal var backwardBuffer: Int = 2
+    internal var forwardBuffer: Int = 5
     
     var rangedItems: [PlaylistItem?] {
         ((currentIndex - backwardBuffer)...(currentIndex + forwardBuffer))

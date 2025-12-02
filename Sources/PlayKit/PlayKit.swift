@@ -26,10 +26,10 @@ public final class PlayKit {
     private var accessLogSubscription: AnyCancellable?
     
     private init() {
-        registerAccessLogSubscription()
+        registerBitrateSubscription()
     }
     
-    private func registerAccessLogSubscription() {
+    private func registerBitrateSubscription() {
         accessLogSubscription?.cancel()
         
         let subscription = NotificationCenter.default

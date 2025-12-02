@@ -26,10 +26,10 @@ public final class PlayKit {
     private var accessLogSubscription: AnyCancellable?
     
     private init() {
-        registerAccessLogSubscription()
+        registerBitrateSubscription()
     }
     
-    private func registerAccessLogSubscription() {
+    private func registerBitrateSubscription() {
         accessLogSubscription?.cancel()
         
         let subscription = NotificationCenter.default
@@ -48,7 +48,7 @@ public final class PlayKit {
             .first { $0 > .zero }
         
         let windowedMax = subscription
-            .collect(.byTime(DispatchQueue.main, .seconds(10)))
+            .collect(.byTime(DispatchQueue.main, .seconds(60)))
             .compactMap { $0.max() }
             .filter { $0 > .zero }
             .removeDuplicates()

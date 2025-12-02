@@ -44,7 +44,6 @@ public final class UIPlaylistView: UIView {
             subscribeToCurrentIndex()
             subscribeToRate()
             prepareCurrentPlayer()
-            calculateBufferWindows()
         }
     }
     
@@ -56,7 +55,6 @@ public final class UIPlaylistView: UIView {
     
     override init(frame: CGRect) {
         super.init(frame: frame)
-        registerBitrateSubscription()
         registerLifecycleSubscriptions()
     }
     
@@ -113,66 +111,6 @@ public final class UIPlaylistView: UIView {
                 self?.currentPlayer?.playWhenReady()
             }
             .store(in: &lifecyleSubscriptions)
-    }
-    
-    private func registerBitrateSubscription() {
-        bitrateSubscription?.cancel()
-        bitrateSubscription = PlayKit.shared.bitratePublisher
-            .filter { $0 > .zero }
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] bitrate in
-                self?.calculateBufferWindows(basedOn: bitrate)
-            }
-    }
-    
-    private func calculateBufferWindows(basedOn bitrate: Double? = nil) {
-        let bitrate = bitrate ?? PlayKit.shared.lastObservedBitrate
-        let newForwardBuffer = Int(bitrate / 500_000).clamped(to: 2...5)
-        let newBackwardBuffer = Int(bitrate / 1_000_000).clamped(to: 1...2)
-
-        if newForwardBuffer != controller?.forwardBuffer {
-            controller?.forwardBuffer = newForwardBuffer
-            
-            let backwardBuffer = controller?.backwardBuffer ?? .zero
-            let forwardBuffer = controller?.forwardBuffer ?? .zero
-            let newPlayersCount = backwardBuffer + forwardBuffer + 1
-            
-            if players.count < newPlayersCount {
-                let newPlayers = createPlayers(count: newPlayersCount - players.count)
-                players.append(contentsOf: newPlayers)
-            } else {
-                let playersToRemove = players.suffix(players.count - newPlayersCount)
-                players.removeLast(playersToRemove.count)
-                for player in playersToRemove {
-                    player.cancel()
-                    player.removeFromSuperview()
-                }
-            }
-        }
-        
-        if newBackwardBuffer != controller?.backwardBuffer {
-            controller?.backwardBuffer = newBackwardBuffer
-            
-            let backwardBuffer = controller?.backwardBuffer ?? .zero
-            let forwardBuffer = controller?.forwardBuffer ?? .zero
-            let newPlayersCount = backwardBuffer + forwardBuffer + 1
-            
-            if players.count < newPlayersCount {
-                let newPlayers = createPlayers(count: newPlayersCount - players.count)
-                players.insert(contentsOf: newPlayers, at: .zero)
-            } else {
-                let playersToRemove = players.prefix(players.count - newPlayersCount)
-                players.removeFirst(playersToRemove.count)
-                for player in playersToRemove {
-                    player.cancel()
-                    player.removeFromSuperview()
-                }
-            }
-        }
-        
-        if controller?.isFocused == true {
-            prepareRelativePlayers()
-        }
     }
     
     private func registerPlayerSubscriptions(for players: [UIPlayerView]) {

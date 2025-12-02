@@ -44,7 +44,7 @@ public final class UIPlaylistView: UIView {
             subscribeToCurrentIndex()
             subscribeToRate()
             prepareCurrentPlayer()
-//            calculateBufferWindows()
+            calculateBufferWindows()
         }
     }
     
@@ -121,14 +121,14 @@ public final class UIPlaylistView: UIView {
             .filter { $0 > .zero }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] bitrate in
-//                self?.calculateBufferWindows(basedOn: bitrate)
+                self?.calculateBufferWindows(basedOn: bitrate)
             }
     }
     
     private func calculateBufferWindows(basedOn bitrate: Double? = nil) {
         let bitrate = bitrate ?? PlayKit.shared.lastObservedBitrate
-        let newForwardBuffer = Int(bitrate / 500_000).clamped(to: 2...5)
-        let newBackwardBuffer = Int(bitrate / 1_000_000).clamped(to: 1...2)
+        let newForwardBuffer = Int(bitrate / 500_000).clamped(to: 3...5)
+        let newBackwardBuffer = Int(bitrate / 500_000).clamped(to: 1...2)
 
         if newForwardBuffer != controller?.forwardBuffer {
             controller?.forwardBuffer = newForwardBuffer

@@ -59,7 +59,7 @@ final class UIPlayerView: UIView {
     }
     
     func prepare(item: PlaylistItem?) {
-        guard item != self.item || item == .error else { return }
+        guard item != self.item else { return }
         
         cancel()
         self.item = item

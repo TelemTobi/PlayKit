@@ -148,6 +148,7 @@ final class UIPlayerView: UIView {
         player.cancelPendingPrerolls()
         player.replaceCurrentItem(with: nil)
         readyObserver = nil
+        status.value = .ready
         statusSubscription?.cancel()
         imageView.image = nil
         progressInSeconds.value = .zero

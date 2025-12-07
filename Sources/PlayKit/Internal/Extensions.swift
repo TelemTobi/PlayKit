@@ -28,21 +28,6 @@ extension Comparable {
     }
 }
 
-extension TimeInterval {
-    var timeFormatted: String {
-        guard !self.isNaN, !self.isInfinite else { return "" }
-        let hours = Int(self / 3600)
-        let minutes = (Int(self) % 3600) / 60
-        let seconds = Int(self) % 60
-
-        return if hours > 0 {
-            String(format: "%02d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            String(format: "%02d:%02d", minutes, seconds)
-        }
-    }
-}
-
 extension Task where Success == Never, Failure == Never {
     static func sleep(interval: TimeInterval) async throws {
         try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))

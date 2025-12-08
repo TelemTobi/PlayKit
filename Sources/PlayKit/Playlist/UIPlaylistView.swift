@@ -9,6 +9,11 @@ import Combine
 import UIKit
 import AVKit
 
+/// A UIKit view that orchestrates buffered playback for a playlist.
+///
+/// The view hosts multiple ``UIPlayerView`` instances to keep items before and
+/// after the current index preloaded, enabling smooth transitions when the
+/// user advances or rewinds.
 public final class UIPlaylistView: UIView {
     private var players: [UIPlayerView] = []
     
@@ -34,6 +39,10 @@ public final class UIPlaylistView: UIView {
         return players.removing(currentPlayer)
     }
     
+    /// The controller that supplies playlist items and playback state.
+    ///
+    /// Assigning a controller wires the view to the controller's publishers and
+    /// starts managing player lifecycles for the surrounding buffer window.
     public var controller: PlaylistController? {
         didSet {
             subscribeToPlaylistItems()
@@ -47,6 +56,9 @@ public final class UIPlaylistView: UIView {
         }
     }
     
+    /// The video gravity applied to all managed player views.
+    ///
+    /// Updates propagate immediately to existing players.
     public var gravity: AVLayerVideoGravity = .resizeAspect {
         willSet {
             players.forEach { $0.setGravity(newValue) }

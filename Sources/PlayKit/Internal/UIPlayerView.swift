@@ -29,6 +29,7 @@ final class UIPlayerView: UIView {
     private var reachedEndSubscription: AnyCancellable?
     private var readyObserver: NSKeyValueObservation?
     private var timeObserverToken: Any?
+    private var timeControlStatusSubscription: AnyCancellable?
 
     private var imageLoadingTask: Task<Void, Never>?
     private var timerSubscription: AnyCancellable?
@@ -82,6 +83,7 @@ final class UIPlayerView: UIView {
             registerStatusSubscription()
             registerTimeSubscription()
             registerReachedEndSubscription()
+            registerTimeControlStatusSubscription()
             
         case let .custom(duration):
             durationInSeconds = duration
@@ -96,11 +98,18 @@ final class UIPlayerView: UIView {
     }
     
     func playWhenReady() {
+        guard let item else { return }
+        
         switch item {
         case let .image(_, duration), let .custom(duration):
             runNonVideoTimer(for: duration)
             
         case .video:
+            NotificationCenter.default.post(
+                name: PlayKit.videoRequestedNotification,
+                object: PlayKit.NotificationPayload(item: item)
+            )
+            
             if playerLayer.isReadyForDisplay {
                 player.play()
                 player.rate = rate
@@ -125,9 +134,6 @@ final class UIPlayerView: UIView {
             
         case .error:
             runNonVideoTimer(for: errorDuration)
-            
-        case .none:
-            break
         }
     }
     
@@ -232,6 +238,35 @@ extension UIPlayerView {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.reachedEnd.send()
+            }
+    }
+    
+    private func registerTimeControlStatusSubscription() {
+        timeControlStatusSubscription?.cancel()
+        
+        timeControlStatusSubscription = player.publisher(for: \.timeControlStatus)
+            .removeDuplicates()
+            .sink { [weak self] status in
+                guard let self, let item else { return }
+                
+                switch status {
+                case .playing:
+                    NotificationCenter.default.post(
+                        name: PlayKit.videoStartedNotification,
+                        object: PlayKit.NotificationPayload(item: item)
+                    )
+                    
+                case .waitingToPlayAtSpecifiedRate:
+                    if player.reasonForWaitingToPlay == AVPlayer.WaitingReason.toMinimizeStalls {
+                        NotificationCenter.default.post(
+                            name: PlayKit.videoStalledNotification,
+                            object: PlayKit.NotificationPayload(item: item)
+                        )
+                    }
+                    
+                default:
+                    break
+                }
             }
     }
     

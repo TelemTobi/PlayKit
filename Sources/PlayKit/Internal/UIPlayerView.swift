@@ -251,6 +251,8 @@ extension UIPlayerView {
                 
                 switch status {
                 case .playing:
+                    self.status.value = .ready
+                    
                     NotificationCenter.default.post(
                         name: PlayKit.videoStartedNotification,
                         object: PlayKit.NotificationPayload(url: url)
@@ -258,6 +260,8 @@ extension UIPlayerView {
                     
                 case .waitingToPlayAtSpecifiedRate:
                     if player.reasonForWaitingToPlay == AVPlayer.WaitingReason.toMinimizeStalls {
+                        self.status.value = .loading
+                        
                         NotificationCenter.default.post(
                             name: PlayKit.videoStalledNotification,
                             object: PlayKit.NotificationPayload(url: url)

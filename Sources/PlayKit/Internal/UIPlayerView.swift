@@ -104,10 +104,10 @@ final class UIPlayerView: UIView {
         case let .image(_, duration), let .custom(duration):
             runNonVideoTimer(for: duration)
             
-        case .video:
+        case let .video(url):
             NotificationCenter.default.post(
                 name: PlayKit.videoRequestedNotification,
-                object: PlayKit.NotificationPayload(item: item)
+                object: PlayKit.NotificationPayload(url: url)
             )
             
             if playerLayer.isReadyForDisplay {
@@ -247,20 +247,20 @@ extension UIPlayerView {
         timeControlStatusSubscription = player.publisher(for: \.timeControlStatus)
             .removeDuplicates()
             .sink { [weak self] status in
-                guard let self, let item else { return }
+                guard let self, case let .video(url) = item else { return }
                 
                 switch status {
                 case .playing:
                     NotificationCenter.default.post(
                         name: PlayKit.videoStartedNotification,
-                        object: PlayKit.NotificationPayload(item: item)
+                        object: PlayKit.NotificationPayload(url: url)
                     )
                     
                 case .waitingToPlayAtSpecifiedRate:
                     if player.reasonForWaitingToPlay == AVPlayer.WaitingReason.toMinimizeStalls {
                         NotificationCenter.default.post(
                             name: PlayKit.videoStalledNotification,
-                            object: PlayKit.NotificationPayload(item: item)
+                            object: PlayKit.NotificationPayload(url: url)
                         )
                     }
                     

@@ -12,7 +12,7 @@ import Foundation
 /// Items can be still images, videos, or custom placeholders that advance
 /// after a specified duration. Instances are value types and equatable so they
 /// can be diffed when playlist contents change.
-public enum PlaylistItem: Equatable {
+public enum PlaylistItem: Equatable, Hashable {
     /// A still image to display for a fixed duration.
     ///
     /// - Parameters:

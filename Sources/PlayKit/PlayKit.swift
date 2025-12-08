@@ -35,8 +35,8 @@ public enum PlayKit {
     ///
     /// This value is delivered as the notification `object` and includes the
     /// time the event was generated alongside the associated ``PlaylistItem``.
-    public struct NotificationPayload {
-        let date = Date()
-        let item: PlaylistItem
+    public struct NotificationPayload: Hashable {
+        public let date = Date()
+        public let url: URL
     }
 }

@@ -105,7 +105,6 @@ final class UIPlayerView: UIView {
             runNonVideoTimer(for: duration)
             
         case .video:
-            print("🩵 Requested \(item)")
             NotificationCenter.default.post(
                 name: PlayKit.videoRequestedNotification,
                 object: PlayKit.NotificationPayload(item: item)
@@ -252,7 +251,6 @@ extension UIPlayerView {
                 
                 switch status {
                 case .playing:
-                    print("🩵 Played \(item)")
                     NotificationCenter.default.post(
                         name: PlayKit.videoStartedNotification,
                         object: PlayKit.NotificationPayload(item: item)
@@ -260,7 +258,6 @@ extension UIPlayerView {
                     
                 case .waitingToPlayAtSpecifiedRate:
                     if player.reasonForWaitingToPlay == AVPlayer.WaitingReason.toMinimizeStalls {
-                        print("🩵 Stalled \(item)")
                         NotificationCenter.default.post(
                             name: PlayKit.videoStalledNotification,
                             object: PlayKit.NotificationPayload(item: item)

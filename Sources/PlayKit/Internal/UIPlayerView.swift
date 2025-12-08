@@ -26,10 +26,10 @@ final class UIPlayerView: UIView {
     private(set) var progressInSeconds = CurrentValueSubject<TimeInterval, Never>(.zero)
     
     private var statusSubscription: AnyCancellable?
-    private var timeControlStatusSubscription: AnyCancellable?
     private var reachedEndSubscription: AnyCancellable?
     private var readyObserver: NSKeyValueObservation?
     private var timeObserverToken: Any?
+    private var timeControlStatusSubscription: AnyCancellable?
 
     private var imageLoadingTask: Task<Void, Never>?
     private var timerSubscription: AnyCancellable?
@@ -105,6 +105,7 @@ final class UIPlayerView: UIView {
             runNonVideoTimer(for: duration)
             
         case .video:
+            print("🩵 Requested \(item)")
             NotificationCenter.default.post(
                 name: PlayKit.videoRequestedNotification,
                 object: PlayKit.NotificationPayload(item: item)
@@ -247,14 +248,24 @@ extension UIPlayerView {
         timeControlStatusSubscription = player.publisher(for: \.timeControlStatus)
             .removeDuplicates()
             .sink { [weak self] status in
-                guard let item = self?.item else { return }
-                print("🩵", status)
+                guard let self, let item else { return }
+                
                 switch status {
                 case .playing:
+                    print("🩵 Played \(item)")
                     NotificationCenter.default.post(
                         name: PlayKit.videoStartedNotification,
                         object: PlayKit.NotificationPayload(item: item)
                     )
+                    
+                case .waitingToPlayAtSpecifiedRate:
+                    if player.reasonForWaitingToPlay == AVPlayer.WaitingReason.toMinimizeStalls {
+                        print("🩵 Stalled \(item)")
+                        NotificationCenter.default.post(
+                            name: PlayKit.videoStalledNotification,
+                            object: PlayKit.NotificationPayload(item: item)
+                        )
+                    }
                     
                 default:
                     break

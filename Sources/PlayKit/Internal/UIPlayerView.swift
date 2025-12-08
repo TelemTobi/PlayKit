@@ -26,6 +26,7 @@ final class UIPlayerView: UIView {
     private(set) var progressInSeconds = CurrentValueSubject<TimeInterval, Never>(.zero)
     
     private var statusSubscription: AnyCancellable?
+    private var timeControlStatusSubscription: AnyCancellable?
     private var reachedEndSubscription: AnyCancellable?
     private var readyObserver: NSKeyValueObservation?
     private var timeObserverToken: Any?
@@ -82,6 +83,7 @@ final class UIPlayerView: UIView {
             registerStatusSubscription()
             registerTimeSubscription()
             registerReachedEndSubscription()
+            registerTimeControlStatusSubscription()
             
         case let .custom(duration):
             durationInSeconds = duration
@@ -96,11 +98,18 @@ final class UIPlayerView: UIView {
     }
     
     func playWhenReady() {
+        guard let item else { return }
+        
         switch item {
         case let .image(_, duration), let .custom(duration):
             runNonVideoTimer(for: duration)
             
         case .video:
+            NotificationCenter.default.post(
+                name: PlayKit.videoRequestedNotification,
+                object: PlayKit.NotificationPayload(item: item)
+            )
+            
             if playerLayer.isReadyForDisplay {
                 player.play()
                 player.rate = rate
@@ -125,9 +134,6 @@ final class UIPlayerView: UIView {
             
         case .error:
             runNonVideoTimer(for: errorDuration)
-            
-        case .none:
-            break
         }
     }
     
@@ -232,6 +238,27 @@ extension UIPlayerView {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.reachedEnd.send()
+            }
+    }
+    
+    private func registerTimeControlStatusSubscription() {
+        timeControlStatusSubscription?.cancel()
+        
+        timeControlStatusSubscription = player.publisher(for: \.timeControlStatus)
+            .removeDuplicates()
+            .sink { [weak self] status in
+                guard let item = self?.item else { return }
+                print("🩵", status)
+                switch status {
+                case .playing:
+                    NotificationCenter.default.post(
+                        name: PlayKit.videoStartedNotification,
+                        object: PlayKit.NotificationPayload(item: item)
+                    )
+                    
+                default:
+                    break
+                }
             }
     }
     

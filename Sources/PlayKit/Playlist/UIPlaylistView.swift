@@ -71,27 +71,19 @@ public final class UIPlaylistView: UIView {
     }
     
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        super.init(coder: coder)
+        registerLifecycleSubscriptions()
     }
     
     private func initiatePlayers() {
         players.forEach { $0.removeFromSuperview() }
         players.removeAll()
         
-        let backwardBuffer = controller?.backwardBuffer ?? .zero
-        let forwardBuffer = controller?.forwardBuffer ?? .zero
-        let newPlayers = createPlayers(count: backwardBuffer + forwardBuffer + 1)
-        players.append(contentsOf: newPlayers)
-    }
-    
-    private func createPlayers(count: Int) -> [UIPlayerView] {
-        var newPlayers: [UIPlayerView] = []
-        
-        for _ in 0..<count {
-            newPlayers.append(UIPlayerView())
+        for player in controller?.players ?? [] {
+            players.append(UIPlayerView(player: player))
         }
         
-        for playerView in newPlayers {
+        for playerView in players {
             playerView.alpha = .zero
             playerView.setGravity(gravity)
             
@@ -105,8 +97,7 @@ public final class UIPlaylistView: UIView {
             ])
         }
         
-        registerPlayerSubscriptions(for: newPlayers)
-        return newPlayers
+        registerPlayerSubscriptions(for: players)
     }
     
     private func registerLifecycleSubscriptions() {

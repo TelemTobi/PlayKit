@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import AVKit
 
 /// An observable controller that coordinates playlist playback and state.
 ///
@@ -64,6 +65,8 @@ public final class PlaylistController: ObservableObject {
         rangedItems[safe: backwardBuffer] ?? nil
     }
     
+    internal let players: [AVPlayer]
+    
     /// Creates a new controller.
     ///
     /// - Parameters:
@@ -81,6 +84,14 @@ public final class PlaylistController: ObservableObject {
         } else {
             self.currentIndex = .zero
         }
+        
+        players = Array(
+            repeating: { AVPlayer() }(),
+            count: backwardBuffer + forwardBuffer + 1
+        )
+        
+        
+        prepareInitialItemIfNeeded()
     }
     
     /// Updates whether the playlist should be considered in focus.
@@ -99,6 +110,13 @@ public final class PlaylistController: ObservableObject {
             currentIndex = .zero
         }
         self.items = newValue
+        
+        for player in players {
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+        }
+        
+        prepareInitialItemIfNeeded()
     }
     
     /// Advances to the next item, clamping to the end of the playlist.
@@ -148,5 +166,27 @@ public final class PlaylistController: ObservableObject {
     /// Marks the playlist as paused.
     public func pause() {
         self.isPlaying = false
+    }
+}
+
+extension PlaylistController {
+    private func prepareInitialItemIfNeeded() {
+        switch currentItem {
+        case let .image(url, _):
+            Task {
+                await ImageProvider.shared.loadImage(from: url)
+            }
+            
+        case let .video(url):
+            guard let player = players[safe: backwardBuffer] else { break }
+            
+            let item = AVPlayerItem(url: url)
+            item.preferredForwardBufferDuration = 2.5
+            player.replaceCurrentItem(with: item)
+            player.automaticallyWaitsToMinimizeStalling = true
+            
+        case .custom, .error, .none:
+            break
+        }
     }
 }

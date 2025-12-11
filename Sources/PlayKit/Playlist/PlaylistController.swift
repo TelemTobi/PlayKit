@@ -85,13 +85,7 @@ public final class PlaylistController: ObservableObject {
             self.currentIndex = .zero
         }
         
-        var newPlayer: AVPlayer { AVPlayer() }
-        players = Array(
-            repeating: newPlayer,
-            count: backwardBuffer + forwardBuffer + 1
-        )
-        
-        
+        players = (0..<backwardBuffer + forwardBuffer + 1).map { _ in AVPlayer() }
         prepareInitialItemIfNeeded()
     }
     

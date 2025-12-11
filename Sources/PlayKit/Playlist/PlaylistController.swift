@@ -85,8 +85,9 @@ public final class PlaylistController: ObservableObject {
             self.currentIndex = .zero
         }
         
+        var newPlayer: AVPlayer { AVPlayer() }
         players = Array(
-            repeating: { AVPlayer() }(),
+            repeating: newPlayer,
             count: backwardBuffer + forwardBuffer + 1
         )
         

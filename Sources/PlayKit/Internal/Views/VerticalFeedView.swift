@@ -60,8 +60,8 @@ final class VerticalFeedView: UIView {
     }
     
     // TODO: Consider debouncing 👇
-    private func onScroll() {
-        let visibleRect = CGRect(origin: collectionView.contentOffset, size: collectionView.bounds.size)
+    private func onScroll(contentOffset: CGPoint) {
+        let visibleRect = CGRect(origin: contentOffset, size: collectionView.bounds.size)
         
         var maxVisibility: CGFloat = 0
         var mostVisibleCell: UICollectionViewCell?

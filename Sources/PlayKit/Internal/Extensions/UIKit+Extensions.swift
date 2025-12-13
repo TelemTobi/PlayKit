@@ -37,7 +37,7 @@ extension UICollectionViewCell {
 }
 
 extension UICollectionViewLayout {
-    static func verticalFeed(onScroll: @MainActor @escaping () -> Void) -> UICollectionViewCompositionalLayout {
+    static func verticalFeed(onScroll: @MainActor @escaping (CGPoint) -> Void) -> UICollectionViewCompositionalLayout {
         let itemSize = NSCollectionLayoutSize(
             widthDimension: .fractionalWidth(1.0),
             heightDimension: .fractionalHeight(1.0)
@@ -54,7 +54,7 @@ extension UICollectionViewLayout {
         )
 
         let layoutSection = NSCollectionLayoutSection(group: layoutGroup)
-        layoutSection.visibleItemsInvalidationHandler = { _, _, _ in onScroll() }
+        layoutSection.visibleItemsInvalidationHandler = { _, offset, _ in onScroll(offset) }
         layoutSection.orthogonalScrollingBehavior = .groupPaging
 
         let config = UICollectionViewCompositionalLayoutConfiguration()

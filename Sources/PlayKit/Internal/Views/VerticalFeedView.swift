@@ -8,52 +8,103 @@
 import Combine
 import UIKit
 
+@MainActor
 protocol VerticalFeedViewDelegate: AnyObject {
-    func numberOfPlayers() -> Int
-    func status(for index: Int) -> PlaylistItem.Status
-    func player(for index: Int) -> UIPlayerView
+    func playerView(for item: PlaylistItem) -> UIView?
 }
 
 final class VerticalFeedView: UIView {
+    private weak var controller: PlaylistController?
     private weak var delegate: VerticalFeedViewDelegate?
-
-    private lazy var tableView: UITableView = {
-        let tableView = UITableView()
-        tableView.delegate = self
-        tableView.dataSource = self
-        tableView.isPagingEnabled = true
-        return tableView
+    
+    private lazy var collectionView: UICollectionView = {
+        let collectionView = UICollectionView(frame: .zero, collectionViewLayout: .verticalFeed)
+        collectionView.delegate = self
+        collectionView.dataSource = self
+        collectionView.register(VerticalFeedCell.self)
+        return collectionView
     }()
 
-    var currentIndex = CurrentValueSubject<Int, Never>(.zero)
+    private var itemsSubscription: AnyCancellable?
 
+    convenience init(controller: PlaylistController?, delegate: VerticalFeedViewDelegate?) {
+        self.init(frame: .zero)
+        self.controller = controller
+        self.delegate = delegate
+        self.subscribeToPlaylistItems()
+    }
+    
     override init(frame: CGRect) {
         super.init(frame: frame)
         
-        tableView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(tableView)
-        NSLayoutConstraint.activate([
-            tableView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            tableView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            tableView.topAnchor.constraint(equalTo: topAnchor),
-            tableView.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
+        addSubview(collectionView)
+        collectionView.anchorToSuperview()
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    
+    private func subscribeToPlaylistItems() {
+        itemsSubscription?.cancel()
+        
+        itemsSubscription = controller?.$items
+            .filter { !$0.isEmpty }
+            .debounce(for: 0.1, scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.collectionView.reloadData()
+            }
+    }
 }
 
-extension VerticalFeedView: UITableViewDelegate, UITableViewDataSource {
-    public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        delegate?.numberOfPlayers() ?? .zero
+extension VerticalFeedView: UICollectionViewDelegate, UICollectionViewDataSource {
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        controller?.items.count ?? .zero
     }
     
-    public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = UITableViewCell() // TODO: Dequeue instead
-        let contentView = delegate?.player(for: indexPath.row)
-//        cell.addSubview(...)
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell = collectionView.dequeue(VerticalFeedCell.self, for: indexPath)
+
+        guard let playlistItem = controller?.items[safe: indexPath.row],
+              let playerView = delegate?.playerView(for: playlistItem) else { return cell }
+        
+        cell.embed(playerView)
         return cell
+    }
+    
+    // TODO: Consider debouncing 👇
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        let visibleRect = CGRect(origin: scrollView.contentOffset, size: scrollView.bounds.size)
+        
+        var maxVisibility: CGFloat = 0
+        var mostVisibleCell: UICollectionViewCell?
+        
+        for cell in collectionView.visibleCells {
+            let intersection = visibleRect.intersection(cell.frame)
+            let visibilityPercentage = (intersection.width * intersection.height) / (cell.frame.width * cell.frame.height)
+            
+            if visibilityPercentage > maxVisibility {
+                maxVisibility = visibilityPercentage
+                mostVisibleCell = cell
+            }
+        }
+        
+        if let cell = mostVisibleCell as? VerticalFeedCell,
+            let mostVisibleIndex = collectionView.indexPath(for: cell)?.row,
+            mostVisibleIndex != controller?.currentIndex {
+            controller?.setCurrentIndex(mostVisibleIndex)
+        }
+    }
+}
+
+fileprivate class VerticalFeedCell: UICollectionViewCell {
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        contentView.subviews.forEach { $0.removeFromSuperview() }
+    }
+    
+    func embed(_ view: UIView) {
+        contentView.addSubview(view)
+        view.anchorToSuperview()
     }
 }

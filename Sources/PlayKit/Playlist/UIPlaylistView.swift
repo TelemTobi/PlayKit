@@ -96,15 +96,13 @@ public final class UIPlaylistView: UIView {
     }
     
     private func prepareUserInterface() {
-        switch playlistType {
-        case .tapThrough:
-            let view = TapThroughView(players: players)
-            addSubview(view)
-            view.anchorToSuperview()
-            
-        case .verticalFeed:
-            break
+        let contentView: UIView = switch playlistType {
+        case .tapThrough: TapThroughView(players: players)
+        case .verticalFeed: VerticalFeedView(controller: controller, delegate: self)
         }
+        
+        addSubview(contentView)
+        contentView.anchorToSuperview()
     }
     
     private func registerLifecycleSubscriptions() {
@@ -338,5 +336,11 @@ public final class UIPlaylistView: UIView {
         case .verticalFeed:
             break
         }
+    }
+}
+
+extension UIPlaylistView: VerticalFeedViewDelegate {
+    func playerView(for item: PlaylistItem) -> UIView? {
+        players.first(where: { $0.item == item })
     }
 }

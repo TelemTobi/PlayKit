@@ -7,6 +7,7 @@
 
 import UIKit
 
+// TODO: Consider removing if that's all it does ⚠️
 final class TapThroughView: UIView {
     
     convenience init(players: [UIPlayerView]) {

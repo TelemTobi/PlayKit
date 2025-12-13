@@ -14,7 +14,6 @@ final class TapThroughView: UIView {
         
         for playerView in players {
             playerView.alpha = .zero
-            playerView.translatesAutoresizingMaskIntoConstraints = false
             addSubview(playerView)
             playerView.anchorToSuperview()
         }

@@ -38,7 +38,7 @@ extension Task where Success == Never, Failure == Never {
 extension UIView {
     func anchorToSuperview() {
         guard let superview else { return }
-        
+        translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             self.leadingAnchor.constraint(equalTo: superview.leadingAnchor),
             self.trailingAnchor.constraint(equalTo: superview.trailingAnchor),

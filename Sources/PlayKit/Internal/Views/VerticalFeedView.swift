@@ -18,7 +18,10 @@ final class VerticalFeedView: UIView {
     private weak var delegate: VerticalFeedViewDelegate?
     
     private lazy var collectionView: UICollectionView = {
-        let collectionView = UICollectionView(frame: .zero, collectionViewLayout: .verticalFeed)
+        let collectionView = UICollectionView(
+            frame: .zero,
+            collectionViewLayout: .verticalFeed(onScroll: onScroll)
+        )
         collectionView.delegate = self
         collectionView.dataSource = self
         collectionView.register(VerticalFeedCell.self)
@@ -55,26 +58,10 @@ final class VerticalFeedView: UIView {
                 self?.collectionView.reloadData()
             }
     }
-}
-
-extension VerticalFeedView: UICollectionViewDelegate, UICollectionViewDataSource {
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        controller?.items.count ?? .zero
-    }
-    
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeue(VerticalFeedCell.self, for: indexPath)
-
-        guard let playlistItem = controller?.items[safe: indexPath.row],
-              let playerView = delegate?.playerView(for: playlistItem) else { return cell }
-        
-        cell.embed(playerView)
-        return cell
-    }
     
     // TODO: Consider debouncing 👇
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        let visibleRect = CGRect(origin: scrollView.contentOffset, size: scrollView.bounds.size)
+    private func onScroll() {
+        let visibleRect = CGRect(origin: collectionView.contentOffset, size: collectionView.bounds.size)
         
         var maxVisibility: CGFloat = 0
         var mostVisibleCell: UICollectionViewCell?
@@ -94,6 +81,22 @@ extension VerticalFeedView: UICollectionViewDelegate, UICollectionViewDataSource
             mostVisibleIndex != controller?.currentIndex {
             controller?.setCurrentIndex(mostVisibleIndex)
         }
+    }
+}
+
+extension VerticalFeedView: UICollectionViewDelegate, UICollectionViewDataSource {
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        controller?.items.count ?? .zero
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell = collectionView.dequeue(VerticalFeedCell.self, for: indexPath)
+
+        guard let playlistItem = controller?.items[safe: indexPath.row],
+              let playerView = delegate?.playerView(for: playlistItem) else { return cell }
+        
+        cell.embed(playerView)
+        return cell
     }
 }
 

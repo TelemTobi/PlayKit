@@ -97,6 +97,8 @@ final class UIPlayerView: UIView {
     
     func playWhenReady() {
         guard let item else { return }
+
+        // TODO: Check what happens if called when already playing ⚠️
         
         switch item {
         case let .image(_, duration), let .custom(duration):

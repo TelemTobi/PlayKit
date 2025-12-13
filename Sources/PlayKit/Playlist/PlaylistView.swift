@@ -13,6 +13,7 @@ import AVKit
 /// Use this view to embed PlayKit playback inside SwiftUI hierarchies while
 /// retaining UIKit rendering performance.
 public struct PlaylistView: UIViewRepresentable {
+    let playlistType: PlaylistType
     let controller: PlaylistController
     let gravity: AVLayerVideoGravity
     
@@ -22,14 +23,15 @@ public struct PlaylistView: UIViewRepresentable {
     ///   - controller: The playlist controller that supplies items and state.
     ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and
     ///     images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
-    public init(controller: PlaylistController, gravity: AVLayerVideoGravity = .resizeAspect) {
+    public init(type: PlaylistType, controller: PlaylistController, gravity: AVLayerVideoGravity = .resizeAspect) {
+        self.playlistType = type
         self.controller = controller
         self.gravity = gravity
     }
     
     public func makeUIView(context: Context) -> UIPlaylistView {
         let playlistView = UIPlaylistView()
-        playlistView.controller = controller
+        playlistView.initialize(type: playlistType, controller: controller)
         playlistView.gravity = gravity
         return playlistView
     }

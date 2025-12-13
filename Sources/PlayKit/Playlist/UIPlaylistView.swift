@@ -39,22 +39,14 @@ public final class UIPlaylistView: UIView {
         return players.removing(currentPlayer)
     }
     
+    // TODO: Document ⚠️
+    public var playlistType: PlaylistType = .tapThrough
+    
     /// The controller that supplies playlist items and playback state.
     ///
     /// Assigning a controller wires the view to the controller's publishers and
     /// starts managing player lifecycles for the surrounding buffer window.
-    public var controller: PlaylistController? {
-        didSet {
-            subscribeToPlaylistItems()
-            initiatePlayers()
-            subscribeToIsPlaying()
-            subscribeToIsFocused()
-            subscribeToProgress()
-            subscribeToCurrentIndex()
-            subscribeToRate()
-            prepareCurrentPlayer()
-        }
-    }
+    public var controller: PlaylistController?
     
     /// The video gravity applied to all managed player views.
     ///
@@ -75,29 +67,44 @@ public final class UIPlaylistView: UIView {
         registerLifecycleSubscriptions()
     }
     
+    public func initialize(type: PlaylistType, controller: PlaylistController) {
+        self.playlistType = type
+        self.controller = controller
+        
+        subscribeToPlaylistItems()
+        initiatePlayers()
+        subscribeToIsPlaying()
+        subscribeToIsFocused()
+        subscribeToProgress()
+        subscribeToCurrentIndex()
+        subscribeToRate()
+        prepareCurrentPlayer()
+    }
+    
     private func initiatePlayers() {
-        players.forEach { $0.removeFromSuperview() }
+        subviews.forEach { $0.removeFromSuperview() }
         players.removeAll()
         
         for player in controller?.players ?? [] {
-            players.append(UIPlayerView(player: player))
-        }
-        
-        for playerView in players {
-            playerView.alpha = .zero
+            let playerView = UIPlayerView(player: player)
             playerView.setGravity(gravity)
-            
-            playerView.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(playerView)
-            NSLayoutConstraint.activate([
-                playerView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                playerView.trailingAnchor.constraint(equalTo: trailingAnchor),
-                playerView.topAnchor.constraint(equalTo: topAnchor),
-                playerView.bottomAnchor.constraint(equalTo: bottomAnchor)
-            ])
+            players.append(playerView)
         }
         
+        prepareUserInterface()
         registerPlayerSubscriptions(for: players)
+    }
+    
+    private func prepareUserInterface() {
+        switch playlistType {
+        case .tapThrough:
+            let view = TapThroughView(players: players)
+            addSubview(view)
+            view.anchorToSuperview()
+            
+        case .verticalFeed:
+            break
+        }
     }
     
     private func registerLifecycleSubscriptions() {
@@ -320,10 +327,16 @@ public final class UIPlaylistView: UIView {
     }
     
     private func transitionToCurrentPlayer() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            currentPlayer?.alpha = 1
-            relativePlayers.forEach { $0.alpha = .zero }
+        switch playlistType {
+        case .tapThrough:
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                currentPlayer?.alpha = 1
+                relativePlayers.forEach { $0.alpha = .zero }
+            }
+            
+        case .verticalFeed:
+            break
         }
     }
 }

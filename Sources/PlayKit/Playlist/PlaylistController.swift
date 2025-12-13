@@ -173,7 +173,8 @@ extension PlaylistController {
             }
             
         case let .video(url):
-            guard let player = players[safe: backwardBuffer] else { break }
+            guard let player = players[safe: backwardBuffer],
+                player.currentItem == nil else { break }
             
             let item = AVPlayerItem(url: url)
             item.preferredForwardBufferDuration = 2.5

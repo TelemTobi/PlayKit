@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 
 extension Collection {
     subscript(safe index: Index) -> Element? {
@@ -31,5 +32,18 @@ extension Comparable {
 extension Task where Success == Never, Failure == Never {
     static func sleep(interval: TimeInterval) async throws {
         try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+    }
+}
+
+extension UIView {
+    func anchorToSuperview() {
+        guard let superview else { return }
+        
+        NSLayoutConstraint.activate([
+            self.leadingAnchor.constraint(equalTo: superview.leadingAnchor),
+            self.trailingAnchor.constraint(equalTo: superview.trailingAnchor),
+            self.topAnchor.constraint(equalTo: superview.topAnchor),
+            self.bottomAnchor.constraint(equalTo: superview.bottomAnchor)
+        ])
     }
 }

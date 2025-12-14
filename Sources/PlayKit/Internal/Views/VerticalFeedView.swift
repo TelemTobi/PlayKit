@@ -23,8 +23,8 @@ final class VerticalFeedView: UIView, PlaylistContentView {
             frame: .zero,
             collectionViewLayout: .verticalFeed(onScroll: onScroll)
         )
-        collectionView.delegate = self
         collectionView.dataSource = self
+        collectionView.scrollsToTop = false
         collectionView.register(VerticalFeedCell.self)
         return collectionView
     }()
@@ -90,7 +90,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     }
 }
 
-extension VerticalFeedView: UICollectionViewDelegate, UICollectionViewDataSource {
+extension VerticalFeedView: UICollectionViewDataSource {
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         controller?.items.count ?? .zero
     }

@@ -57,6 +57,9 @@ public final class UIPlaylistView: UIView {
         }
     }
     
+    // TODO: Document ⚠️
+    public var overlayForItemAtIndex: ((Int) -> UIView?)? = nil
+    
     override init(frame: CGRect) {
         super.init(frame: frame)
         registerLifecycleSubscriptions()
@@ -342,5 +345,9 @@ public final class UIPlaylistView: UIView {
 extension UIPlaylistView: VerticalFeedViewDelegate {
     func playerView(for item: PlaylistItem) -> UIView? {
         players.first(where: { $0.item == item })
+    }
+    
+    func overlayView(for index: Int) -> UIView? {
+        overlayForItemAtIndex?(index)
     }
 }

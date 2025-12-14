@@ -11,6 +11,7 @@ import UIKit
 @MainActor
 protocol VerticalFeedViewDelegate: AnyObject {
     func playerView(for item: PlaylistItem) -> UIView?
+    func overlayView(for index: Int) -> UIView?
 }
 
 final class VerticalFeedView: UIView {
@@ -95,7 +96,8 @@ extension VerticalFeedView: UICollectionViewDelegate, UICollectionViewDataSource
         guard let playlistItem = controller?.items[safe: indexPath.row],
               let playerView = delegate?.playerView(for: playlistItem) else { return cell }
         
-        cell.embed(playerView)
+        let overlay = delegate?.overlayView(for: indexPath.row)
+        cell.embed(playerView, with: overlay)
         return cell
     }
 }
@@ -106,8 +108,13 @@ fileprivate class VerticalFeedCell: UICollectionViewCell {
         contentView.subviews.forEach { $0.removeFromSuperview() }
     }
     
-    func embed(_ view: UIView) {
+    func embed(_ view: UIView, with overlay: UIView? = nil) {
         contentView.addSubview(view)
         view.anchorToSuperview()
+        
+        if let overlay {
+            contentView.addSubview(overlay)
+            overlay.anchorToSuperview()
+        }
     }
 }

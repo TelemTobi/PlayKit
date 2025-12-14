@@ -337,7 +337,13 @@ public final class UIPlaylistView: UIView {
             prepareAllPlayers()
         }
         
-        previouslyPlayedPlayer?.seekToBeginning()
+        switch playlistType {
+        case .tapThrough:
+            previouslyPlayedPlayer?.seekToBeginning()
+        case .verticalFeed:
+            break
+        }
+        
         controller?.status = currentPlayer?.status.value ?? .loading
     }
     

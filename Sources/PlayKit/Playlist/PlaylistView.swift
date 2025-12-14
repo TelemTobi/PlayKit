@@ -59,6 +59,9 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     }
     
     public func updateUIView(_ uiView: UIPlaylistView, context: Context) {
-        
+        uiView.overlayForItemAtIndex = { index in
+            guard let overlay = overlayForItemAtIndex?(index) else { return nil }
+            return UIHostingController(rootView: overlay).view
+        }
     }
 }

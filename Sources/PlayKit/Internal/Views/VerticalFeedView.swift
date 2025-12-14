@@ -14,7 +14,7 @@ protocol VerticalFeedViewDelegate: AnyObject {
     func overlayView(for index: Int) -> UIView?
 }
 
-final class VerticalFeedView: UIView {
+final class VerticalFeedView: UIView, PlaylistContentView {
     private weak var controller: PlaylistController?
     private weak var delegate: VerticalFeedViewDelegate?
     
@@ -48,6 +48,10 @@ final class VerticalFeedView: UIView {
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+    
+    func reloadData() {
+        collectionView.reloadData()
     }
     
     private func subscribeToPlaylistItems() {

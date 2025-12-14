@@ -39,8 +39,8 @@ public final class UIPlaylistView: UIView {
         return players.removing(currentPlayer)
     }
     
-    // TODO: Document ⚠️
-    public var playlistType: PlaylistType = .tapThrough
+    private var playlistType: PlaylistType = .tapThrough
+    private weak var contentView: PlaylistContentView?
     
     /// The controller that supplies playlist items and playback state.
     ///
@@ -58,7 +58,9 @@ public final class UIPlaylistView: UIView {
     }
     
     // TODO: Document ⚠️
-    public var overlayForItemAtIndex: ((Int) -> UIView?)? = nil
+    public var overlayForItemAtIndex: ((Int) -> UIView?)? = nil {
+        didSet { contentView?.reloadData() }
+    }
     
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -99,13 +101,14 @@ public final class UIPlaylistView: UIView {
     }
     
     private func prepareUserInterface() {
-        let contentView: UIView = switch playlistType {
+        let contentView: PlaylistContentView = switch playlistType {
         case .tapThrough: TapThroughView(players: players)
         case .verticalFeed: VerticalFeedView(controller: controller, delegate: self)
         }
         
         addSubview(contentView)
         contentView.anchorToSuperview()
+        self.contentView = contentView
     }
     
     private func registerLifecycleSubscriptions() {

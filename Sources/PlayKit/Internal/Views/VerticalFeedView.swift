@@ -30,11 +30,13 @@ final class VerticalFeedView: UIView {
     }()
 
     private var itemsSubscription: AnyCancellable?
+    private var indexSubscription: AnyCancellable?
 
     convenience init(controller: PlaylistController?, delegate: VerticalFeedViewDelegate?) {
         self.init(frame: .zero)
         self.controller = controller
         self.delegate = delegate
+        
         self.subscribeToPlaylistItems()
     }
     
@@ -57,6 +59,22 @@ final class VerticalFeedView: UIView {
             .debounce(for: 0.1, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.collectionView.reloadData()
+            }
+    }
+    
+    private func subscribeToCurrentIndex() {
+        indexSubscription?.cancel()
+        
+        indexSubscription = controller?.$currentIndex
+            .dropFirst()
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newIndex in
+                self?.collectionView.scrollToItem(
+                    at: IndexPath(row: newIndex, section: .zero),
+                    at: .centeredVertically,
+                    animated: true
+                )
             }
     }
     

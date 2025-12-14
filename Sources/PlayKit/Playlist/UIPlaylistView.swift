@@ -153,11 +153,18 @@ public final class UIPlaylistView: UIView {
                 }
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] in
-                    if self?.controller?.currentIndex == (self?.controller?.items.count ?? .zero) - 1 {
-                        self?.controller?.reachedEnd.send()
-                    } else {
-                        self?.controller?.advanceToNext()
+                    switch playlistType {
+                    case .tapThrough:
+                        if self?.controller?.currentIndex == (self?.controller?.items.count ?? .zero) - 1 {
+                            self?.controller?.reachedEnd.send()
+                        } else {
+                            self?.controller?.advanceToNext()
+                        }
+                        
+                    case .verticalFeed:
+                        self?.currentPlayer?.seekToBeginning()
                     }
+                    
                 }
                 .store(in: &reachedEndSubscriptions)
         }

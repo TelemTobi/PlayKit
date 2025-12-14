@@ -38,6 +38,7 @@ final class VerticalFeedView: UIView {
         self.delegate = delegate
         
         self.subscribeToPlaylistItems()
+        self.subscribeToCurrentIndex()
     }
     
     override init(frame: CGRect) {

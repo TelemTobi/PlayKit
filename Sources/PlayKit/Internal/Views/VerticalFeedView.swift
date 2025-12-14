@@ -23,6 +23,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
             frame: .zero,
             collectionViewLayout: .verticalFeed(onScroll: onScroll)
         )
+        collectionView.delegate = self
         collectionView.dataSource = self
         collectionView.register(VerticalFeedCell.self)
         return collectionView
@@ -50,11 +51,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     }
     
     func reloadData() {
-        for cell in collectionView.visibleCells.compactMap({ $0 as? VerticalFeedCell }) {
-            guard let indexPath = collectionView.indexPath(for: cell) else { continue }
-            let overlay = delegate?.overlayView(for: indexPath.row)
-            cell.replaceOverlay(with: overlay)
-        }
+        collectionView.reloadData()
     }
     
     private func subscribeToPlaylistItems() {
@@ -93,7 +90,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     }
 }
 
-extension VerticalFeedView: UICollectionViewDataSource {
+extension VerticalFeedView: UICollectionViewDelegate, UICollectionViewDataSource {
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         controller?.items.count ?? .zero
     }
@@ -125,17 +122,5 @@ fileprivate class VerticalFeedCell: UICollectionViewCell {
             contentView.addSubview(overlay)
             overlay.anchorToSuperview()
         }
-    }
-    
-    func replaceOverlay(with overlay: UIView?) {
-        guard let overlay else { return }
-        
-        contentView.subviews
-            .filter { !($0 is UIPlayerView) }
-            .forEach { $0.removeFromSuperview() }
-        
-        overlay.backgroundColor = .clear
-        contentView.addSubview(overlay)
-        overlay.anchorToSuperview()
     }
 }

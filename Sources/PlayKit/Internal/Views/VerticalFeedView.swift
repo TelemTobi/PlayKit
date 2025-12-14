@@ -71,17 +71,21 @@ final class VerticalFeedView: UIView {
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newIndex in
+                let animated = if #available(iOS 17.4, *) { true } else { false }
+                
                 self?.collectionView.scrollToItem(
                     at: IndexPath(row: newIndex, section: .zero),
                     at: .centeredVertically,
-                    animated: true
+                    animated: animated
                 )
             }
     }
     
     // TODO: Consider debouncing 👇
     private func onScroll(contentOffset: CGPoint) {
-        guard !collectionView.isScrollAnimating else { return }
+        if #available(iOS 17.4, *), collectionView.isScrollAnimating {
+            return
+        }
         
         let visibleRect = CGRect(origin: contentOffset, size: collectionView.bounds.size)
         

@@ -163,6 +163,7 @@ public final class UIPlaylistView: UIView {
                         
                     case .verticalFeed:
                         self?.currentPlayer?.seekToBeginning()
+                        self?.currentPlayer?.playWhenReady()
                         
                     case .none:
                         break

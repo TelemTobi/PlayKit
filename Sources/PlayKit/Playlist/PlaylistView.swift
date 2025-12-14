@@ -28,7 +28,7 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
         type: PlaylistType,
         controller: PlaylistController,
         gravity: AVLayerVideoGravity = .resizeAspect
-    ) {
+    ) where Overlay == EmptyView {
         self.playlistType = type
         self.controller = controller
         self.gravity = gravity

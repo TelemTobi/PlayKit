@@ -113,6 +113,7 @@ fileprivate class VerticalFeedCell: UICollectionViewCell {
         view.anchorToSuperview()
         
         if let overlay {
+            overlay.backgroundColor = .clear
             contentView.addSubview(overlay)
             overlay.anchorToSuperview()
         }

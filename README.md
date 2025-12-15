@@ -12,7 +12,7 @@ A lightweight, UIKit-powered playlist engine for SwiftUI and UIKit that delivers
 
 ## See It in Action
 - 📺 Demo video: coming soon (shows both tap-through and vertical feed with overlays).
-- 📱 Demo project: [PlayKit Demo](https://github.com/your-org/playkit-demo)
+- 📱 Demo project: [PlayKit Demo](https://github.com/TelemTobi/PlayKit-Demo)
 
 ## Requirements
 - iOS 15+

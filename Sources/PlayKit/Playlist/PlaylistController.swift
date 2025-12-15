@@ -7,13 +7,14 @@
 
 import Foundation
 import Combine
+import AVKit
 
 /// An observable controller that coordinates playlist playback and state.
 ///
-/// Attach an instance to ``PlaylistView`` or ``UIPlaylistView`` to drive media
-/// presentation. The controller buffers a window of items around the current
-/// index to minimize transitions and exposes playback state via ``Publisher``
-/// properties for SwiftUI or UIKit consumers.
+/// Attach an instance to ``PlaylistView`` or ``UIPlaylistView`` (tap-through or
+/// vertical feed) to drive media presentation. The controller buffers a window
+/// of items around the current index to minimize transitions and exposes
+/// playback state via ``Publisher`` properties for SwiftUI or UIKit consumers.
 public final class PlaylistController: ObservableObject {
     /// The items currently managed by the playlist.
     ///
@@ -40,7 +41,8 @@ public final class PlaylistController: ObservableObject {
     /// The total duration, in seconds, of the current item when available.
     @Published public internal(set) var durationInSeconds: TimeInterval = .zero
     
-    /// Publishes when the playlist reaches the final item and finishes playing.
+    /// Publishes when a tap-through playlist reaches the final item and finishes
+    /// playing.
     public internal(set) var reachedEnd = PassthroughSubject<Void, Never>()
 
     /// Indicates whether the playlist currently has UI focus.
@@ -52,8 +54,8 @@ public final class PlaylistController: ObservableObject {
     @Published public var isPlaying: Bool = false
 
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
-    internal var backwardBuffer: Int = 2
-    internal var forwardBuffer: Int = 5
+    internal let backwardBuffer: Int
+    internal let forwardBuffer: Int
     
     var rangedItems: [PlaylistItem?] {
         ((currentIndex - backwardBuffer)...(currentIndex + forwardBuffer))
@@ -64,29 +66,46 @@ public final class PlaylistController: ObservableObject {
         rangedItems[safe: backwardBuffer] ?? nil
     }
     
+    internal let players: [AVPlayer]
+    
     /// Creates a new controller.
     ///
     /// - Parameters:
     ///   - items: Initial playlist contents. Defaults to an empty list.
     ///   - initialIndex: The starting index. If the value is out of bounds, the
     ///     controller resets it to zero.
+    ///   - backwardBuffer: The number of items to preload before the current
+    ///     index.
+    ///   - forwardBuffer: The number of items to preload after the current
+    ///     index.
     ///   - isFocused: Whether the playlist starts focused. Focus determines
     ///     whether playback should commence automatically.
-    public init(items: [PlaylistItem] = [], initialIndex: Int = .zero, isFocused: Bool = false) {
+    public init(
+        items: [PlaylistItem] = [],
+        initialIndex: Int = .zero,
+        backwardBuffer: Int = 2,
+        forwardBuffer: Int = 5,
+        isFocused: Bool = false
+    ) {
         self.items = items
         self.isFocused = isFocused
+        self.backwardBuffer = backwardBuffer
+        self.forwardBuffer = forwardBuffer
         
         if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex
         } else {
             self.currentIndex = .zero
         }
+        
+        players = (0..<backwardBuffer + forwardBuffer + 1).map { _ in AVPlayer() }
+        prepareInitialItemIfNeeded()
     }
     
     /// Updates whether the playlist should be considered in focus.
     ///
     /// Use this to reflect app lifecycle or navigation events.
-    public func setIsFocused(_ newValue: Bool) {
+    public func setFocus(_ newValue: Bool) {
         self.isFocused = newValue
     }
     
@@ -99,6 +118,13 @@ public final class PlaylistController: ObservableObject {
             currentIndex = .zero
         }
         self.items = newValue
+        
+        for player in players {
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+        }
+        
+        prepareInitialItemIfNeeded()
     }
     
     /// Advances to the next item, clamping to the end of the playlist.
@@ -148,5 +174,28 @@ public final class PlaylistController: ObservableObject {
     /// Marks the playlist as paused.
     public func pause() {
         self.isPlaying = false
+    }
+}
+
+extension PlaylistController {
+    private func prepareInitialItemIfNeeded() {
+        switch currentItem {
+        case let .image(url, _):
+            Task {
+                await ImageProvider.shared.loadImage(from: url)
+            }
+            
+        case let .video(url):
+            guard let player = players[safe: backwardBuffer],
+                player.currentItem == nil else { break }
+            
+            let item = AVPlayerItem(url: url)
+            item.preferredForwardBufferDuration = 2.5
+            player.replaceCurrentItem(with: item)
+            player.automaticallyWaitsToMinimizeStalling = true
+            
+        case .custom, .error, .none:
+            break
+        }
     }
 }

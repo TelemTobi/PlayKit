@@ -14,7 +14,7 @@ final class UIPlayerView: UIView {
     
     private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     
-    private let player = AVPlayer()
+    private var player: AVPlayer!
     private let errorDuration: TimeInterval = 5
     internal var rate: Float = 1
     
@@ -41,8 +41,10 @@ final class UIPlayerView: UIView {
         return imageView
     }()
     
-    override init(frame: CGRect) {
-        super.init(frame: frame)
+    convenience init(player: AVPlayer) {
+        self.init(frame: .zero)
+        self.player = player
+        
         playerLayer.player = player
         
         imageView.translatesAutoresizingMaskIntoConstraints = false
@@ -53,10 +55,6 @@ final class UIPlayerView: UIView {
             imageView.topAnchor.constraint(equalTo: topAnchor),
             imageView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
-    }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
     }
     
     func prepare(item: PlaylistItem?) {

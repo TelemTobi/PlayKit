@@ -13,7 +13,8 @@ import AVKit
 ///
 /// The view hosts multiple ``UIPlayerView`` instances to keep items before and
 /// after the current index preloaded, enabling smooth transitions when the
-/// user advances or rewinds.
+/// user advances or rewinds. Supports both tap-through and vertical-feed
+/// presentations depending on the provided ``PlaylistType``.
 public final class UIPlaylistView: UIView {
     private var players: [UIPlayerView] = []
     
@@ -39,22 +40,14 @@ public final class UIPlaylistView: UIView {
         return players.removing(currentPlayer)
     }
     
+    private var playlistType: PlaylistType = .tapThrough
+    private weak var contentView: PlaylistContentView?
+    
     /// The controller that supplies playlist items and playback state.
     ///
     /// Assigning a controller wires the view to the controller's publishers and
     /// starts managing player lifecycles for the surrounding buffer window.
-    public var controller: PlaylistController? {
-        didSet {
-            subscribeToPlaylistItems()
-            initiatePlayers()
-            subscribeToIsPlaying()
-            subscribeToIsFocused()
-            subscribeToProgress()
-            subscribeToCurrentIndex()
-            subscribeToRate()
-            prepareCurrentPlayer()
-        }
-    }
+    public var controller: PlaylistController?
     
     /// The video gravity applied to all managed player views.
     ///
@@ -65,48 +58,69 @@ public final class UIPlaylistView: UIView {
         }
     }
     
+    /// Provides an optional overlay for the item at the given index.
+    ///
+    /// Assign a closure to supply an overlay view per item. The closure is
+    /// called as cells or player views are prepared.
+    public var overlayForItemAtIndex: ((Int) -> UIView?)? = nil {
+        didSet { contentView?.reloadData() }
+    }
+    
     override init(frame: CGRect) {
         super.init(frame: frame)
         registerLifecycleSubscriptions()
     }
     
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        super.init(coder: coder)
+        registerLifecycleSubscriptions()
+    }
+    
+    /// Connects the playlist view to a controller and configures its layout.
+    ///
+    /// Call this once after instantiation to select a ``PlaylistType`` and wire
+    /// the view to the supplied ``PlaylistController``.
+    ///
+    /// - Parameters:
+    ///   - type: The presentation style (tap-through or vertical feed).
+    ///   - controller: The playlist controller that provides items and state.
+    public func initialize(type: PlaylistType, controller: PlaylistController) {
+        self.playlistType = type
+        self.controller = controller
+        
+        subscribeToPlaylistItems()
+        initiatePlayers()
+        subscribeToIsPlaying()
+        subscribeToIsFocused()
+        subscribeToProgress()
+        subscribeToCurrentIndex()
+        subscribeToRate()
+        prepareCurrentPlayer()
     }
     
     private func initiatePlayers() {
-        players.forEach { $0.removeFromSuperview() }
+        subviews.forEach { $0.removeFromSuperview() }
         players.removeAll()
         
-        let backwardBuffer = controller?.backwardBuffer ?? .zero
-        let forwardBuffer = controller?.forwardBuffer ?? .zero
-        let newPlayers = createPlayers(count: backwardBuffer + forwardBuffer + 1)
-        players.append(contentsOf: newPlayers)
+        for player in controller?.players ?? [] {
+            let playerView = UIPlayerView(player: player)
+            playerView.setGravity(gravity)
+            players.append(playerView)
+        }
+        
+        prepareUserInterface()
+        registerPlayerSubscriptions(for: players)
     }
     
-    private func createPlayers(count: Int) -> [UIPlayerView] {
-        var newPlayers: [UIPlayerView] = []
-        
-        for _ in 0..<count {
-            newPlayers.append(UIPlayerView())
+    private func prepareUserInterface() {
+        let contentView: PlaylistContentView = switch playlistType {
+        case .tapThrough: TapThroughView(players: players)
+        case .verticalFeed: VerticalFeedView(controller: controller, delegate: self)
         }
         
-        for playerView in newPlayers {
-            playerView.alpha = .zero
-            playerView.setGravity(gravity)
-            
-            playerView.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(playerView)
-            NSLayoutConstraint.activate([
-                playerView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                playerView.trailingAnchor.constraint(equalTo: trailingAnchor),
-                playerView.topAnchor.constraint(equalTo: topAnchor),
-                playerView.bottomAnchor.constraint(equalTo: bottomAnchor)
-            ])
-        }
-        
-        registerPlayerSubscriptions(for: newPlayers)
-        return newPlayers
+        addSubview(contentView)
+        contentView.anchorToSuperview()
+        self.contentView = contentView
     }
     
     private func registerLifecycleSubscriptions() {
@@ -154,11 +168,22 @@ public final class UIPlaylistView: UIView {
                 }
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] in
-                    if self?.controller?.currentIndex == (self?.controller?.items.count ?? .zero) - 1 {
-                        self?.controller?.reachedEnd.send()
-                    } else {
-                        self?.controller?.advanceToNext()
+                    switch self?.playlistType {
+                    case .tapThrough:
+                        if self?.controller?.currentIndex == (self?.controller?.items.count ?? .zero) - 1 {
+                            self?.controller?.reachedEnd.send()
+                        } else {
+                            self?.controller?.advanceToNext()
+                        }
+                        
+                    case .verticalFeed:
+                        self?.currentPlayer?.seekToBeginning()
+                        self?.currentPlayer?.playWhenReady()
+                        
+                    case .none:
+                        break
                     }
+                    
                 }
                 .store(in: &reachedEndSubscriptions)
         }
@@ -324,15 +349,37 @@ public final class UIPlaylistView: UIView {
             prepareAllPlayers()
         }
         
-        previouslyPlayedPlayer?.seekToBeginning()
+        switch playlistType {
+        case .tapThrough:
+            previouslyPlayedPlayer?.seekToBeginning()
+        case .verticalFeed:
+            break
+        }
+        
         controller?.status = currentPlayer?.status.value ?? .loading
     }
     
     private func transitionToCurrentPlayer() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            currentPlayer?.alpha = 1
-            relativePlayers.forEach { $0.alpha = .zero }
+        switch playlistType {
+        case .tapThrough:
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                currentPlayer?.alpha = 1
+                relativePlayers.forEach { $0.alpha = .zero }
+            }
+            
+        case .verticalFeed:
+            break
         }
+    }
+}
+
+extension UIPlaylistView: VerticalFeedViewDelegate {
+    func playerView(for item: PlaylistItem) -> UIView? {
+        players.first(where: { $0.item == item })
+    }
+    
+    func overlayView(for index: Int) -> UIView? {
+        overlayForItemAtIndex?(index)
     }
 }

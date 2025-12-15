@@ -17,7 +17,8 @@ final actor ImageProvider {
         cache.countLimit = 10
 //        cache.totalCostLimit = 100_000_000
     }
-    
+
+    @discardableResult
     func loadImage(from url: URL) async -> UIImage? {
         if let cachedImage = cache.object(forKey: url as AnyObject) {
             return cachedImage

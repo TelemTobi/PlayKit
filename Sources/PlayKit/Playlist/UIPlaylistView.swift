@@ -13,7 +13,8 @@ import AVKit
 ///
 /// The view hosts multiple ``UIPlayerView`` instances to keep items before and
 /// after the current index preloaded, enabling smooth transitions when the
-/// user advances or rewinds.
+/// user advances or rewinds. Supports both tap-through and vertical-feed
+/// presentations depending on the provided ``PlaylistType``.
 public final class UIPlaylistView: UIView {
     private var players: [UIPlayerView] = []
     
@@ -57,7 +58,10 @@ public final class UIPlaylistView: UIView {
         }
     }
     
-    // TODO: Document ⚠️
+    /// Provides an optional overlay for the item at the given index.
+    ///
+    /// Assign a closure to supply an overlay view per item. The closure is
+    /// called as cells or player views are prepared.
     public var overlayForItemAtIndex: ((Int) -> UIView?)? = nil {
         didSet { contentView?.reloadData() }
     }
@@ -72,6 +76,14 @@ public final class UIPlaylistView: UIView {
         registerLifecycleSubscriptions()
     }
     
+    /// Connects the playlist view to a controller and configures its layout.
+    ///
+    /// Call this once after instantiation to select a ``PlaylistType`` and wire
+    /// the view to the supplied ``PlaylistController``.
+    ///
+    /// - Parameters:
+    ///   - type: The presentation style (tap-through or vertical feed).
+    ///   - controller: The playlist controller that provides items and state.
     public func initialize(type: PlaylistType, controller: PlaylistController) {
         self.playlistType = type
         self.controller = controller

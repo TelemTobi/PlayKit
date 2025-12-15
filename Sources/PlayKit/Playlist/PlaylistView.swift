@@ -11,7 +11,8 @@ import AVKit
 /// A SwiftUI wrapper that hosts a ``UIPlaylistView``.
 ///
 /// Use this view to embed PlayKit playback inside SwiftUI hierarchies while
-/// retaining UIKit rendering performance.
+/// retaining UIKit rendering performance. Choose a ``PlaylistType`` to render
+/// either a tap-through experience or a vertical, feed-style layout.
 public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     let playlistType: PlaylistType
     let controller: PlaylistController
@@ -21,6 +22,7 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     /// Creates a playlist view.
     ///
     /// - Parameters:
+    ///   - type: The presentation style to use (tap-through or vertical feed).
     ///   - controller: The playlist controller that supplies items and state.
     ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and
     ///     images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
@@ -35,6 +37,15 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
         self.overlayForItemAtIndex = nil
     }
     
+    /// Creates a playlist view with per-item overlays.
+    ///
+    /// - Parameters:
+    ///   - type: The presentation style to use (tap-through or vertical feed).
+    ///   - controller: The playlist controller that supplies items and state.
+    ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and
+    ///     images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
+    ///   - overlayForItemAtIndex: A builder that returns an overlay for a given
+    ///     playlist index. Return `nil` to omit an overlay for the item.
     public init(
         type: PlaylistType,
         controller: PlaylistController,

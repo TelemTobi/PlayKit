@@ -40,8 +40,8 @@ Then add the dependency to your target:
 
 ### 1) Choose a playlist type
 PlayKit supports two presentation styles via `PlaylistType`, covering both stories and reels use cases with minimal setup:
-- `.tapThrough`: stacked players where only the active item is visible; perfect for stories or paging flows. You own the gestures—wire your tap/drag handlers to update `PlaylistController` (e.g., `advanceToNext()`, `moveToPrevious()`, `setCurrentIndex(_:)`).
-- `.verticalFeed`: a vertically scrolling feed (reels-style) where the most visible cell becomes the current item; scrolling and index changes are handled for you.
+- `.tapThrough`: stacked players where only the active item is visible; perfect for stories or paging flows. You own the gestures and the overlays—wire your tap/drag handlers to update `PlaylistController` (e.g., `advanceToNext()`, `moveToPrevious()`, `setCurrentIndex(_:)`) and compose your overlay in SwiftUI/UIKit as you prefer.
+- `.verticalFeed`: a vertically scrolling feed (reels-style) where the most visible cell becomes the current item; scrolling, index changes, and per-item overlays are handled for you.
 
 ### 2) Create a controller and items
 ```swift
@@ -110,7 +110,8 @@ view.addSubview(playlistView)
 ```
 
 ## Overlays per item
-Both playlist types support overlays so you can layer UI (e.g., buttons, captions) per item.
+- **Vertical feed**: Provide `overlayForItemAtIndex` to supply per-item overlays (e.g., buttons, captions). PlayKit attaches them to the scrolling feed for you.
+- **Tap-through**: Bring your own overlay UI in SwiftUI or UIKit and manage its lifecycle alongside your gestures; `overlayForItemAtIndex` is not used for `.tapThrough`.
 
 ```swift
 PlaylistView(

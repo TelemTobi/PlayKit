@@ -12,7 +12,7 @@ let package = Package(
         .watchOS(.v6)
     ],
     products: [
-        .library(name: "PlayKit", targets: ["PlayKit"]),
+        .library(name: "PlayKit", targets: ["PlayKit"])
     ],
     targets: [
         .target(
@@ -21,6 +21,6 @@ let package = Package(
         .testTarget(
             name: "PlayKitTests",
             dependencies: ["PlayKit"]
-        ),
+        )
     ]
 )

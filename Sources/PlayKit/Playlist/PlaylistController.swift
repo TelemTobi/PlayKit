@@ -105,7 +105,7 @@ public final class PlaylistController: ObservableObject {
     /// Updates whether the playlist should be considered in focus.
     ///
     /// Use this to reflect app lifecycle or navigation events.
-    public func setIsFocused(_ newValue: Bool) {
+    public func setFocus(_ newValue: Bool) {
         self.isFocused = newValue
     }
     

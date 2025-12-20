@@ -117,14 +117,18 @@ public final class PlaylistController: ObservableObject {
         if !newValue.indices.contains(currentIndex) {
             currentIndex = .zero
         }
+        
+        let isInitialSetOfItems = items.isEmpty
         self.items = newValue
         
-        for player in players {
-            player.pause()
-            player.replaceCurrentItem(with: nil)
+        if isInitialSetOfItems {
+            for player in players {
+                player.pause()
+                player.replaceCurrentItem(with: nil)
+            }
+            
+            prepareInitialItemIfNeeded()
         }
-        
-        prepareInitialItemIfNeeded()
     }
     
     /// Advances to the next item, clamping to the end of the playlist.

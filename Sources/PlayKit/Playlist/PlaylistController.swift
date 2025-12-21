@@ -16,6 +16,12 @@ import AVKit
 /// of items around the current index to minimize transitions and exposes
 /// playback state via ``Publisher`` properties for SwiftUI or UIKit consumers.
 public final class PlaylistController: ObservableObject {
+    /// A caller-provided identifier for correlating this controller instance.
+    ///
+    /// Use this to track or distinguish controllers when multiple playlists are
+    /// active. Defaults to a generated UUID string.
+    public let id: AnyHashable
+    
     /// The items currently managed by the playlist.
     ///
     /// Updates publish changes and adjust the active index to stay in bounds.
@@ -71,6 +77,8 @@ public final class PlaylistController: ObservableObject {
     /// Creates a new controller.
     ///
     /// - Parameters:
+    ///   - id: An identifier for correlating this controller instance. Defaults
+    ///     to a generated UUID string.
     ///   - items: Initial playlist contents. Defaults to an empty list.
     ///   - initialIndex: The starting index. If the value is out of bounds, the
     ///     controller resets it to zero.
@@ -81,12 +89,14 @@ public final class PlaylistController: ObservableObject {
     ///   - isFocused: Whether the playlist starts focused. Focus determines
     ///     whether playback should commence automatically.
     public init(
+        id: AnyHashable = UUID().uuidString,
         items: [PlaylistItem] = [],
         initialIndex: Int = .zero,
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
         isFocused: Bool = false
     ) {
+        self.id = id
         self.items = items
         self.isFocused = isFocused
         self.backwardBuffer = backwardBuffer

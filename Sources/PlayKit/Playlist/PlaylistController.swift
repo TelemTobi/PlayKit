@@ -15,7 +15,7 @@ import AVKit
 /// vertical feed) to drive media presentation. The controller buffers a window
 /// of items around the current index to minimize transitions and exposes
 /// playback state via ``Publisher`` properties for SwiftUI or UIKit consumers.
-public final class PlaylistController: ObservableObject {
+public final class PlaylistController: ObservableObject, Identifiable {
     /// A caller-provided identifier for correlating this controller instance.
     ///
     /// Use this to track or distinguish controllers when multiple playlists are

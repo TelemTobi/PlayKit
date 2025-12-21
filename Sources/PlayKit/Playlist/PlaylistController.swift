@@ -41,8 +41,10 @@ public final class PlaylistController: ObservableObject {
     /// The total duration, in seconds, of the current item when available.
     @Published public internal(set) var durationInSeconds: TimeInterval = .zero
     
-    /// Publishes when a tap-through playlist reaches the final item and finishes
-    /// playing.
+    /// Publishes each time the current item finishes playing.
+    ///
+    /// Emitted on every item completion, not just when the playlist reaches its
+    /// final item.
     public internal(set) var reachedEnd = PassthroughSubject<Void, Never>()
 
     /// Indicates whether the playlist currently has UI focus.

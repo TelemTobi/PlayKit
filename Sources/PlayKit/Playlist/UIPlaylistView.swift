@@ -170,13 +170,14 @@ public final class UIPlaylistView: UIView {
                 .sink { [weak self] in
                     switch self?.playlistType {
                     case .tapThrough:
-                        if self?.controller?.currentIndex == (self?.controller?.items.count ?? .zero) - 1 {
-                            self?.controller?.reachedEnd.send()
-                        } else {
+                        self?.controller?.itemReachedEnd.send()
+                        
+                        if (self?.controller?.currentIndex ?? .zero) < (self?.controller?.items.count ?? .zero) - 1 {
                             self?.controller?.advanceToNext()
                         }
                         
                     case .verticalFeed:
+                        self?.controller?.itemReachedEnd.send()
                         self?.currentPlayer?.seekToBeginning()
                         self?.currentPlayer?.playWhenReady()
                         

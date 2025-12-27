@@ -15,7 +15,8 @@ import AVKit
 /// vertical feed) to drive media presentation. The controller buffers a window
 /// of items around the current index to minimize transitions and exposes
 /// playback state via ``Publisher`` properties for SwiftUI or UIKit consumers.
-public final class PlaylistController: ObservableObject, Identifiable {
+@Observable
+public final class PlaylistController: Identifiable {
     /// A caller-provided identifier for correlating this controller instance.
     ///
     /// Use this to track or distinguish controllers when multiple playlists are
@@ -25,27 +26,33 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// The items currently managed by the playlist.
     ///
     /// Updates publish changes and adjust the active index to stay in bounds.
-    @Published public private(set) var items: [PlaylistItem]
-    
+    public private(set) var items: [PlaylistItem] {
+        willSet { itemsPublisher.value = newValue }
+    }
+        
     /// The index of the item currently in focus.
     ///
     /// Updates emit through the published property and drive which player view
     /// is considered the primary renderer.
-    @Published public private(set) var currentIndex: Int
+    public private(set) var currentIndex: Int {
+        willSet { currentIndexPublisher.value = newValue }
+    }
     
     /// The desired playback rate for the active item.
     ///
     /// A rate greater than zero implicitly turns on ``isPlaying``.
-    @Published public private(set) var rate: Float = 1
-
+    public private(set) var rate: Float = 1 {
+        willSet { ratePublisher.value = newValue }
+    }
+    
     /// Load and readiness state for the current item.
-    @Published public internal(set) var status: PlaylistItem.Status = .ready
+    public internal(set) var status: PlaylistItem.Status = .ready
     
     /// The elapsed playback time, in seconds, for the current item.
-    @Published public internal(set) var progressInSeconds: TimeInterval = .zero
+    public internal(set) var progressInSeconds: TimeInterval = .zero
     
     /// The total duration, in seconds, of the current item when available.
-    @Published public internal(set) var durationInSeconds: TimeInterval = .zero
+    public internal(set) var durationInSeconds: TimeInterval = .zero
     
     /// Publishes each time the current item finishes playing.
     ///
@@ -56,11 +63,21 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// Indicates whether the playlist currently has UI focus.
     ///
     /// When focus is gained, playback resumes; when focus is lost, it pauses.
-    @Published public var isFocused: Bool = false
+    public var isFocused: Bool = false {
+        willSet { isFocusedPublisher.value = newValue }
+    }
     
     /// Indicates whether playback should be active for the current item.
-    @Published public var isPlaying: Bool = false
-
+    public var isPlaying: Bool = false {
+        willSet { isPlayingPublisher.value = newValue }
+    }
+    
+    internal var itemsPublisher: CurrentValueSubject<[PlaylistItem], Never>
+    internal var currentIndexPublisher: CurrentValueSubject<Int, Never>
+    internal var ratePublisher = CurrentValueSubject<Float, Never>(1)
+    internal var isFocusedPublisher = CurrentValueSubject<Bool, Never>(false)
+    internal var isPlayingPublisher = CurrentValueSubject<Bool, Never>(false)
+    
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal let backwardBuffer: Int
     internal let forwardBuffer: Int
@@ -104,13 +121,14 @@ public final class PlaylistController: ObservableObject, Identifiable {
         self.backwardBuffer = backwardBuffer
         self.forwardBuffer = forwardBuffer
         
-        if items.indices.contains(initialIndex) || items.isEmpty {
-            self.currentIndex = initialIndex
-        } else {
-            self.currentIndex = .zero
-        }
+        let currentIndex = (items.indices.contains(initialIndex) || items.isEmpty) ? initialIndex : .zero
+        self.currentIndex = currentIndex
         
         players = (0..<backwardBuffer + forwardBuffer + 1).map { _ in AVPlayer() }
+        
+        itemsPublisher = CurrentValueSubject(items)
+        currentIndexPublisher = CurrentValueSubject(currentIndex)
+        
         prepareInitialItemIfNeeded()
     }
     

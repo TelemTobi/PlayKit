@@ -193,7 +193,7 @@ public final class UIPlaylistView: UIView {
     private func subscribeToPlaylistItems() {
         itemsSubscription?.cancel()
         
-        itemsSubscription = controller?.$items
+        itemsSubscription = controller?.itemsPublisher
             .filter { !$0.isEmpty }
             .debounce(for: 0.1, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -215,7 +215,7 @@ public final class UIPlaylistView: UIView {
     private func subscribeToIsPlaying() {
         isPlayingSubscription?.cancel()
         
-        isPlayingSubscription = controller?.$isPlaying
+        isPlayingSubscription = controller?.isPlayingPublisher
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isPlaying in
@@ -230,7 +230,7 @@ public final class UIPlaylistView: UIView {
     private func subscribeToIsFocused() {
         isFocusedSubscription?.cancel()
         
-        isFocusedSubscription = controller?.$isFocused
+        isFocusedSubscription = controller?.isFocusedPublisher
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isFocused in
@@ -259,7 +259,7 @@ public final class UIPlaylistView: UIView {
     private func subscribeToCurrentIndex() {
         indexSubscription?.cancel()
         
-        indexSubscription = controller?.$currentIndex
+        indexSubscription = controller?.currentIndexPublisher
             .dropFirst()
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
@@ -282,7 +282,7 @@ public final class UIPlaylistView: UIView {
     private func subscribeToRate() {
         rateSubscription?.cancel()
         
-        rateSubscription = controller?.$rate
+        rateSubscription = controller?.ratePublisher
             .dropFirst()
             .removeDuplicates()
             .receive(on: DispatchQueue.main)

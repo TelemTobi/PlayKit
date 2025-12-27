@@ -57,7 +57,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     private func subscribeToPlaylistItems() {
         itemsSubscription?.cancel()
         
-        itemsSubscription = controller?.$items
+        itemsSubscription = controller?.itemsPublisher
             .filter { !$0.isEmpty }
             .debounce(for: 0.1, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in

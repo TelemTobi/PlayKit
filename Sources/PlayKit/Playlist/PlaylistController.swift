@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Observation
 import Combine
 import AVKit
 
@@ -58,6 +59,7 @@ public final class PlaylistController: Identifiable {
     ///
     /// Emitted on every item completion, not just when the playlist reaches its
     /// final item.
+    @ObservationIgnored
     public internal(set) var itemReachedEnd = PassthroughSubject<Void, Never>()
 
     /// Indicates whether the playlist currently has UI focus.
@@ -72,13 +74,14 @@ public final class PlaylistController: Identifiable {
         willSet { isPlayingPublisher.value = newValue }
     }
     
-    internal var itemsPublisher = CurrentValueSubject<[PlaylistItem], Never>([])
-    internal var currentIndexPublisher = CurrentValueSubject<Int, Never>(.zero)
-    internal var ratePublisher = CurrentValueSubject<Float, Never>(1)
-    internal var isFocusedPublisher = CurrentValueSubject<Bool, Never>(false)
-    internal var isPlayingPublisher = CurrentValueSubject<Bool, Never>(false)
+    @ObservationIgnored internal var itemsPublisher = CurrentValueSubject<[PlaylistItem], Never>([])
+    @ObservationIgnored internal var currentIndexPublisher = CurrentValueSubject<Int, Never>(.zero)
+    @ObservationIgnored internal var ratePublisher = CurrentValueSubject<Float, Never>(1)
+    @ObservationIgnored internal var isFocusedPublisher = CurrentValueSubject<Bool, Never>(false)
+    @ObservationIgnored internal var isPlayingPublisher = CurrentValueSubject<Bool, Never>(false)
     
-    internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
+    @ObservationIgnored internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
+    
     internal let backwardBuffer: Int
     internal let forwardBuffer: Int
     

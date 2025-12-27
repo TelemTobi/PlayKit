@@ -72,8 +72,8 @@ public final class PlaylistController: Identifiable {
         willSet { isPlayingPublisher.value = newValue }
     }
     
-    internal var itemsPublisher: CurrentValueSubject<[PlaylistItem], Never>
-    internal var currentIndexPublisher: CurrentValueSubject<Int, Never>
+    internal var itemsPublisher = CurrentValueSubject<[PlaylistItem], Never>([])
+    internal var currentIndexPublisher = CurrentValueSubject<Int, Never>(.zero)
     internal var ratePublisher = CurrentValueSubject<Float, Never>(1)
     internal var isFocusedPublisher = CurrentValueSubject<Bool, Never>(false)
     internal var isPlayingPublisher = CurrentValueSubject<Bool, Never>(false)
@@ -126,8 +126,9 @@ public final class PlaylistController: Identifiable {
         
         players = (0..<backwardBuffer + forwardBuffer + 1).map { _ in AVPlayer() }
         
-        itemsPublisher = CurrentValueSubject(items)
-        currentIndexPublisher = CurrentValueSubject(currentIndex)
+        itemsPublisher.value = items
+        currentIndexPublisher.value = currentIndex
+        isFocusedPublisher.value = isFocused
         
         prepareInitialItemIfNeeded()
     }

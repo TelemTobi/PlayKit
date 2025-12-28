@@ -31,12 +31,24 @@ public enum PlayKit {
     /// item that stalled.
     public static let videoStalledNotification = Notification.Name("PlayKit.videoStalled")
     
+    /// Posted when the player encounters a playback error.
+    ///
+    /// The notification `object` is a ``NotificationPayload`` describing the
+    /// item that failed and, when available, the encountered error.
+    public static let videoErrorNotification = Notification.Name("PlayKit.videoError")
+    
     /// Payload attached to PlayKit playback notifications.
     ///
     /// This value is delivered as the notification `object` and includes the
     /// time the event was generated alongside the associated ``PlaylistItem``.
-    public struct NotificationPayload: Hashable {
+    public struct NotificationPayload {
         public let date = Date()
         public let url: URL
+        public let error: Error?
+        
+        init(url: URL, error: Error? = nil) {
+            self.url = url
+            self.error = error
+        }
     }
 }

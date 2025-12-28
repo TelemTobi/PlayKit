@@ -29,9 +29,12 @@ public enum PlaylistItem: Equatable, Hashable {
     /// A custom placeholder that progresses on a timer instead of media
     /// playback.
     ///
-    /// - Parameter duration: The number of seconds before the item is
-    ///   considered finished.
-    case custom(duration: TimeInterval)
+    /// - Parameters:
+    ///   - id: A stable identifier for correlating or tracking the custom item.
+    ///     Defaults to a generated UUID.
+    ///   - duration: The number of seconds before the item is considered
+    ///     finished.
+    case custom(id: AnyHashable = UUID(), duration: TimeInterval)
     
     /// A sentinel item that represents a load or playback failure.
     ///

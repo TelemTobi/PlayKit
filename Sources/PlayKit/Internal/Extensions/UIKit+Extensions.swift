@@ -58,7 +58,7 @@ extension UICollectionViewLayout {
         layoutSection.orthogonalScrollingBehavior = .groupPaging
 
         let config = UICollectionViewCompositionalLayoutConfiguration()
-//        config.scrollDirection = .horizontal
+        config.scrollDirection = .horizontal
         config.contentInsetsReference = .none
 
         return UICollectionViewCompositionalLayout(section: layoutSection, configuration: config)

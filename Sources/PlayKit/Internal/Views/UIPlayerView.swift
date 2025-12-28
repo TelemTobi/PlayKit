@@ -83,7 +83,7 @@ final class UIPlayerView: UIView {
             registerReachedEndSubscription()
             registerTimeControlStatusSubscription()
             
-        case let .custom(duration):
+        case let .custom(_, duration):
             durationInSeconds = duration
             progressInSeconds.value = .zero
             status.value = .ready
@@ -99,7 +99,7 @@ final class UIPlayerView: UIView {
         guard let item else { return }
         
         switch item {
-        case let .image(_, duration), let .custom(duration):
+        case let .image(_, duration), let .custom(_, duration):
             runNonVideoTimer(for: duration)
             
         case let .video(url):
@@ -210,7 +210,14 @@ extension UIPlayerView {
                 case .failed:
                     self?.status.value = .error
                     self?.durationInSeconds = self?.errorDuration ?? .zero
-                
+                    
+                    if case let .video(url) = self?.item {
+                        NotificationCenter.default.post(
+                            name: PlayKit.videoErrorNotification,
+                            object: PlayKit.NotificationPayload(url: url, error: self?.player.currentItem?.error)
+                        )
+                    }
+                    
                 default:
                     self?.status.value = .loading
                 }

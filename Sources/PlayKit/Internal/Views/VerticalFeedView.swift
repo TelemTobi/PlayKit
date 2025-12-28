@@ -50,6 +50,11 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         fatalError("init(coder:) has not been implemented")
     }
     
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        collectionView.collectionViewLayout.invalidateLayout()
+    }
+    
     func reloadData() {
         collectionView.reloadData()
     }

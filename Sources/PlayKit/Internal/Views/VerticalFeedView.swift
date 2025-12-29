@@ -19,7 +19,10 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     private weak var delegate: VerticalFeedViewDelegate?
     
     private lazy var collectionView: UICollectionView = {
-        let collectionView = VerticalPagerView()
+        let collectionView = UICollectionView(
+            frame: .zero,
+            collectionViewLayout: .verticalFeed(onScroll: onScroll)
+        )
         collectionView.dataSource = self
         collectionView.scrollsToTop = false
         collectionView.register(VerticalFeedCell.self)

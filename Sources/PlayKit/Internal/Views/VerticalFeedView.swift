@@ -30,7 +30,9 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     }()
 
     private var itemsSubscription: AnyCancellable?
-
+    private var isLayoutInProgress: Bool = false
+    private var lastCollectionViewSize: CGSize = .zero
+    
     convenience init(controller: PlaylistController?, delegate: VerticalFeedViewDelegate?) {
         self.init(frame: .zero)
         self.controller = controller
@@ -50,6 +52,20 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         fatalError("init(coder:) has not been implemented")
     }
     
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if bounds.size != lastCollectionViewSize {
+            isLayoutInProgress = true
+            lastCollectionViewSize = bounds.size
+            
+            let currentItemIndexPath = IndexPath(row: controller?.currentIndex ?? .zero, section: .zero)
+            collectionView.collectionViewLayout.invalidateLayout()
+            collectionView.layoutIfNeeded()
+            collectionView.scrollToItem(at: currentItemIndexPath, at: .centeredHorizontally, animated: false)
+            isLayoutInProgress = false
+        }
+    }
+    
     func reloadData() {
         collectionView.reloadData()
     }
@@ -67,6 +83,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     
     // TODO: Consider debouncing 👇
     private func onScroll(contentOffset: CGPoint) {
+        guard !isLayoutInProgress else { return }
         let visibleRect = CGRect(origin: contentOffset, size: collectionView.bounds.size)
         
         var maxVisibility: CGFloat = 0

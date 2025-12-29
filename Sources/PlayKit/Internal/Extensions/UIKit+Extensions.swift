@@ -62,8 +62,8 @@ extension UICollectionViewLayout {
             return section
         }
 
-        layout.configuration.scrollDirection = .horizontal
-        layout.configuration.contentInsetsReference = .none
+        layout.configuration.scrollDirection = .vertical
+//        layout.configuration.contentInsetsReference = .none
         return layout
     }
 }

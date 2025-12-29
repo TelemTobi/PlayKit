@@ -59,7 +59,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
             collectionView.layoutIfNeeded()
             
             let currentItemIndexPath = IndexPath(row: controller?.currentIndex ?? .zero, section: .zero)
-            collectionView.scrollToItem(at: currentItemIndexPath, at: .centeredVertically, animated: false)
+            collectionView.scrollToItem(at: currentItemIndexPath, at: .centeredHorizontally, animated: false)
         }
     }
     

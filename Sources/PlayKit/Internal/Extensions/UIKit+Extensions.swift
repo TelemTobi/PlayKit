@@ -38,32 +38,29 @@ extension UICollectionViewCell {
 
 extension UICollectionViewLayout {
     static func verticalFeed(onScroll: @MainActor @escaping (CGPoint) -> Void) -> UICollectionViewCompositionalLayout {
-        let layout = UICollectionViewCompositionalLayout { _, env in
-            let containerHeight = env.container.effectiveContentSize.height
-            
-            let item = NSCollectionLayoutItem(
-                layoutSize: .init(
-                    widthDimension: .fractionalWidth(1.0),
-                    heightDimension: .absolute(containerHeight)
-                )
-            )
-            
-            let group = NSCollectionLayoutGroup.vertical(
-                layoutSize: .init(
-                    widthDimension: .fractionalWidth(1.0),
-                    heightDimension: .absolute(containerHeight)
-                ),
-                subitems: [item]
-            )
-            
-            let section = NSCollectionLayoutSection(group: group)
-            section.orthogonalScrollingBehavior = .groupPaging
-            section.visibleItemsInvalidationHandler = { _, offset, _ in onScroll(offset) }
-            return section
-        }
+        let itemSize = NSCollectionLayoutSize(
+            widthDimension: .fractionalWidth(1.0),
+            heightDimension: .fractionalHeight(1.0)
+        )
+        let layoutItem = NSCollectionLayoutItem(layoutSize: itemSize)
 
-        layout.configuration.scrollDirection = .vertical
-//        layout.configuration.contentInsetsReference = .none
-        return layout
+        let groupSize = NSCollectionLayoutSize(
+            widthDimension: .fractionalWidth(1.0),
+            heightDimension: .fractionalHeight(1.0)
+        )
+        let layoutGroup = NSCollectionLayoutGroup.vertical(
+            layoutSize: groupSize,
+            subitems: [layoutItem]
+        )
+
+        let layoutSection = NSCollectionLayoutSection(group: layoutGroup)
+        layoutSection.visibleItemsInvalidationHandler = { _, offset, _ in onScroll(offset) }
+        layoutSection.orthogonalScrollingBehavior = .groupPaging
+
+        let config = UICollectionViewCompositionalLayoutConfiguration()
+        config.scrollDirection = .horizontal
+        config.contentInsetsReference = .none
+
+        return UICollectionViewCompositionalLayout(section: layoutSection, configuration: config)
     }
 }

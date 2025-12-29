@@ -30,7 +30,8 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     }()
 
     private var itemsSubscription: AnyCancellable?
-
+    private var lastCollectionViewSize: CGSize = .zero
+    
     convenience init(controller: PlaylistController?, delegate: VerticalFeedViewDelegate?) {
         self.init(frame: .zero)
         self.controller = controller
@@ -48,6 +49,18 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if bounds.size != lastCollectionViewSize {
+            lastCollectionViewSize = bounds.size
+            collectionView.collectionViewLayout.invalidateLayout()
+            collectionView.layoutIfNeeded()
+            
+//            let currentItemIndexPath = IndexPath(row: controller?.currentIndex ?? .zero, section: .zero)
+//            collectionView.scrollToItem(at: currentItemIndexPath, at: .centeredVertically, animated: false)
+        }
     }
     
     func reloadData() {

@@ -19,12 +19,8 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     private weak var delegate: VerticalFeedViewDelegate?
     
     private lazy var collectionView: UICollectionView = {
-        let collectionView = UICollectionView(
-            frame: .zero,
-            collectionViewLayout: .verticalFeed(onScroll: onScroll)
-        )
+        let collectionView = VerticalPagerView()
         collectionView.dataSource = self
-        collectionView.delegate = self
         collectionView.scrollsToTop = false
         collectionView.register(VerticalFeedCell.self)
         return collectionView
@@ -50,11 +46,6 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
-//    override func layoutSubviews() {
-//        super.layoutSubviews()
-//        collectionView.collectionViewLayout.invalidateLayout()
-//    }
     
     func reloadData() {
         collectionView.reloadData()
@@ -110,15 +101,6 @@ extension VerticalFeedView: UICollectionViewDataSource {
         let overlay = delegate?.overlayView(for: indexPath.row)
         cell.embed(playerView, with: overlay)
         return cell
-    }
-}
-
-extension VerticalFeedView: UICollectionViewDelegate {
-    func collectionView(_ collectionView: UICollectionView, targetContentOffsetForProposedContentOffset proposedContentOffset: CGPoint) -> CGPoint {
-        CGPoint(
-            x: .zero,
-            y: collectionView.frame.height * CGFloat(controller?.currentIndex ?? .zero) - collectionView.frame.height / 2
-        )
     }
 }
 

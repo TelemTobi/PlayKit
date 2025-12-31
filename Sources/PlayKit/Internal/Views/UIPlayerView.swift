@@ -67,12 +67,12 @@ final class UIPlayerView: UIView {
         guard let item else { return }
         
         switch item {
-        case let .image(url, duration):
+        case let .image(_, url, duration):
             durationInSeconds = duration
             progressInSeconds.value = .zero
             loadImage(from: url)
             
-        case let .video(url):
+        case let .video(_, url):
             let item = AVPlayerItem(url: url)
             item.preferredForwardBufferDuration = 2.5
             player.replaceCurrentItem(with: item)
@@ -99,10 +99,10 @@ final class UIPlayerView: UIView {
         guard let item else { return }
         
         switch item {
-        case let .image(_, duration), let .custom(_, duration):
+        case let .image(_, _, duration), let .custom(_, duration):
             runNonVideoTimer(for: duration)
             
-        case let .video(url):
+        case let .video(_, url):
             guard player.rate.isZero else { return }
             
             NotificationCenter.default.post(
@@ -211,7 +211,7 @@ extension UIPlayerView {
                     self?.status.value = .error
                     self?.durationInSeconds = self?.errorDuration ?? .zero
                     
-                    if case let .video(url) = self?.item {
+                    if case let .video(_, url) = self?.item {
                         NotificationCenter.default.post(
                             name: PlayKit.videoErrorNotification,
                             object: PlayKit.NotificationPayload(url: url, error: self?.player.currentItem?.error)
@@ -254,7 +254,7 @@ extension UIPlayerView {
         timeControlStatusSubscription = player.publisher(for: \.timeControlStatus)
             .removeDuplicates()
             .sink { [weak self] status in
-                guard let self, case let .video(url) = item else { return }
+                guard let self, case let .video(_, url) = item else { return }
                 
                 switch status {
                 case .playing:

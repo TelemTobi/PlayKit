@@ -196,12 +196,12 @@ public final class PlaylistController: ObservableObject, Identifiable {
 extension PlaylistController {
     private func prepareInitialItemIfNeeded() {
         switch currentItem {
-        case let .image(url, _):
+        case let .image(_, url, _):
             Task {
                 await ImageProvider.shared.loadImage(from: url)
             }
             
-        case let .video(url):
+        case let .video(_, url):
             guard let player = players[safe: backwardBuffer],
                 player.currentItem == nil else { break }
             

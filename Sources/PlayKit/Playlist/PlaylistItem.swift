@@ -11,20 +11,28 @@ import Foundation
 ///
 /// Items can be still images, videos, or custom placeholders that advance
 /// after a specified duration. Instances are value types and equatable so they
-/// can be diffed when playlist contents change.
+/// can be diffed when playlist contents change. Each item can be given a custom
+/// `id` to disambiguate duplicates; if you omit it, a UUID is generated for you.
 public enum PlaylistItem: Equatable, Hashable {
     /// A still image to display for a fixed duration.
     ///
     /// - Parameters:
+    ///   - id: A stable identifier used to differentiate duplicate URLs.
+    ///     Provide this when you need multiple image entries for the same URL;
+    ///     otherwise a UUID is generated automatically.
     ///   - url: The remote or local URL of the image resource.
     ///   - duration: The number of seconds the image remains visible. Defaults
     ///     to 10 seconds.
-    case image(URL, duration: TimeInterval = 10)
+    case image(id: AnyHashable = UUID(), URL, duration: TimeInterval = 10)
     
     /// A video to play using ``AVPlayer``.
     ///
-    /// - Parameter url: The remote or local URL of the video asset.
-    case video(URL)
+    /// - Parameters:
+    ///   - id: A stable identifier used to differentiate duplicate URLs.
+    ///     Provide this when you need multiple video entries for the same URL;
+    ///     otherwise a UUID is generated automatically.
+    ///   - url: The remote or local URL of the video asset.
+    case video(id: AnyHashable = UUID(), URL)
     
     /// A custom placeholder that progresses on a timer instead of media
     /// playback.

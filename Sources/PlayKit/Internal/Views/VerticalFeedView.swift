@@ -31,7 +31,8 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         return collectionView
     }()
 
-    private var itemsSubscription: AnyCancellable?
+    private var subscriptions: Set<AnyCancellable> = []
+    private var mostVisibleIndexPath: IndexPath = .zero
     private var isLayoutInProgress: Bool = false
     private var lastCollectionViewSize: CGSize = .zero
     
@@ -41,6 +42,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         self.delegate = delegate
         
         self.subscribeToPlaylistItems()
+        self.subscribeToCurrentIndex()
     }
     
     override init(frame: CGRect) {
@@ -64,7 +66,10 @@ final class VerticalFeedView: UIView, PlaylistContentView {
             collectionView.collectionViewLayout.invalidateLayout()
             collectionView.layoutIfNeeded()
             collectionView.scrollToItem(at: currentItemIndexPath, at: .centeredHorizontally, animated: false)
-            isLayoutInProgress = false
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.isLayoutInProgress = false
+            }
         }
     }
     
@@ -73,14 +78,26 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     }
     
     private func subscribeToPlaylistItems() {
-        itemsSubscription?.cancel()
-        
-        itemsSubscription = controller?.$items
+        controller?.$items
             .filter { !$0.isEmpty }
             .debounce(for: 0.1, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.collectionView.reloadData()
             }
+            .store(in: &subscriptions)
+    }
+    
+    private func subscribeToCurrentIndex() {
+        controller?.$currentIndex
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newIndex in
+                if newIndex != self?.mostVisibleIndexPath.row {
+                    let newIndexPath = IndexPath(row: newIndex, section: .zero)
+                    self?.collectionView.scrollToItem(at: newIndexPath, at: .centeredHorizontally, animated: false)
+                }
+                
+            }
+            .store(in: &subscriptions)
     }
     
     // TODO: Consider debouncing 👇
@@ -104,6 +121,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         if let cell = mostVisibleCell as? VerticalFeedCell,
             let mostVisibleIndex = collectionView.indexPath(for: cell)?.row,
             mostVisibleIndex != controller?.currentIndex {
+            mostVisibleIndexPath = mostVisibleIndex
             controller?.setCurrentIndex(mostVisibleIndex)
         }
     }

@@ -32,7 +32,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     }()
 
     private var subscriptions: Set<AnyCancellable> = []
-    private var mostVisibleIndexPath: IndexPath = .zero
+    private var mostVisibleIndex: Int = .zero
     private var isLayoutInProgress: Bool = false
     private var lastCollectionViewSize: CGSize = .zero
     
@@ -91,7 +91,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         controller?.$currentIndex
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newIndex in
-                if newIndex != self?.mostVisibleIndexPath.row {
+                if newIndex != self?.mostVisibleIndex {
                     let newIndexPath = IndexPath(row: newIndex, section: .zero)
                     self?.collectionView.scrollToItem(at: newIndexPath, at: .centeredHorizontally, animated: false)
                 }
@@ -121,7 +121,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         if let cell = mostVisibleCell as? VerticalFeedCell,
             let mostVisibleIndex = collectionView.indexPath(for: cell)?.row,
             mostVisibleIndex != controller?.currentIndex {
-            mostVisibleIndexPath = mostVisibleIndex
+            self.mostVisibleIndex = mostVisibleIndex
             controller?.setCurrentIndex(mostVisibleIndex)
         }
     }

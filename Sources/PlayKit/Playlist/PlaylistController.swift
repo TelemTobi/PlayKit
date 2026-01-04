@@ -155,7 +155,11 @@ public final class PlaylistController: ObservableObject, Identifiable {
     
     /// Sets the current index if it differs and is within bounds.
     ///
-    /// - Parameter newValue: The desired index within ``items``.
+    /// - Parameters:
+    ///   - newValue: The desired index within ``items``.
+    ///   - animated: Whether UI surfaces that support animated jumps should
+    ///     animate the scroll. Currently only used by `.verticalFeed`;
+    ///     tap-through views ignore this flag and switch immediately.
     public func setCurrentIndex(_ newValue: Int, animated: Bool = false) {
         guard currentIndex != newValue else { return }
         

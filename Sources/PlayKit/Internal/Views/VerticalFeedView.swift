@@ -93,7 +93,8 @@ final class VerticalFeedView: UIView, PlaylistContentView {
             .sink { [weak self] newIndex in
                 if newIndex != self?.mostVisibleIndex {
                     let newIndexPath = IndexPath(row: newIndex, section: .zero)
-                    self?.collectionView.scrollToItem(at: newIndexPath, at: .centeredHorizontally, animated: false)
+                    let animated = self?.controller?.setIndexWithAnimation ?? false
+                    self?.collectionView.scrollToItem(at: newIndexPath, at: .centeredHorizontally, animated: animated)
                 }
                 
             }

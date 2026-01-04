@@ -64,7 +64,6 @@ public final class PlaylistController: ObservableObject, Identifiable {
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal let backwardBuffer: Int
     internal let forwardBuffer: Int
-    
     var rangedItems: [PlaylistItem?] {
         ((currentIndex - backwardBuffer)...(currentIndex + forwardBuffer))
             .map { items[safe: $0] }
@@ -75,6 +74,7 @@ public final class PlaylistController: ObservableObject, Identifiable {
     }
     
     internal let players: [AVPlayer]
+    internal var setIndexWithAnimation: Bool = false
     
     /// Creates a new controller.
     ///
@@ -156,9 +156,11 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// Sets the current index if it differs and is within bounds.
     ///
     /// - Parameter newValue: The desired index within ``items``.
-    public func setCurrentIndex(_ newValue: Int) {
+    public func setCurrentIndex(_ newValue: Int, animated: Bool = false) {
         guard currentIndex != newValue else { return }
+        
         if items.indices.contains(newValue) {
+            self.setIndexWithAnimation = animated
             self.currentIndex = newValue
         }
     }

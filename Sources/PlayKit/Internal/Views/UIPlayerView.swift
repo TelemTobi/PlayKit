@@ -46,9 +46,7 @@ final class UIPlayerView: UIView {
         self.player = player
         
         playerLayer.player = player
-        playerLayer.backgroundColor = .init(gray: .zero, alpha: .zero)
-        playerLayer.isOpaque = false
-        isOpaque = false
+        playerLayer.backgroundColor = .init(gray: .zero, alpha: 0.01)
 //        self.backgroundColor = .clear
 //        self.layer.backgroundColor = UIColor.red.cgColor
         

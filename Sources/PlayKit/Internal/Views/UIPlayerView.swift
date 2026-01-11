@@ -46,9 +46,9 @@ final class UIPlayerView: UIView {
         self.player = player
         
         playerLayer.player = player
-        playerLayer.backgroundColor = UIColor.red.withAlphaComponent(0).cgColor
+        playerLayer.backgroundColor = UIColor.red.withAlphaComponent(0.5).cgColor
 //        self.backgroundColor = .clear
-        self.layer.backgroundColor = UIColor.red.withAlphaComponent(0).cgColor
+        self.layer.backgroundColor = UIColor.red.withAlphaComponent(0.5).cgColor
         
 //        imageView.translatesAutoresizingMaskIntoConstraints = false
 //        addSubview(imageView)

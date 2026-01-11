@@ -25,6 +25,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         )
         collectionView.dataSource = self
         collectionView.scrollsToTop = false
+        collectionView.backgroundColor = .clear
         collectionView.isDirectionalLockEnabled = true
         collectionView.alwaysBounceHorizontal = false
         collectionView.register(VerticalFeedCell.self)

@@ -25,6 +25,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         )
         collectionView.dataSource = self
         collectionView.scrollsToTop = false
+        collectionView.backgroundColor = .clear
         collectionView.isDirectionalLockEnabled = true
         collectionView.alwaysBounceHorizontal = false
         collectionView.register(VerticalFeedCell.self)
@@ -38,6 +39,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     
     convenience init(controller: PlaylistController?, delegate: VerticalFeedViewDelegate?) {
         self.init(frame: .zero)
+        
         self.controller = controller
         self.delegate = delegate
         

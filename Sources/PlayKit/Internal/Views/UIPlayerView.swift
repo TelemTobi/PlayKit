@@ -49,14 +49,14 @@ final class UIPlayerView: UIView {
         playerLayer.backgroundColor = UIColor.clear.cgColor
         self.backgroundColor = .clear
         
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(imageView)
-        NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            imageView.topAnchor.constraint(equalTo: topAnchor),
-            imageView.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
+//        imageView.translatesAutoresizingMaskIntoConstraints = false
+//        addSubview(imageView)
+//        NSLayoutConstraint.activate([
+//            imageView.leadingAnchor.constraint(equalTo: leadingAnchor),
+//            imageView.trailingAnchor.constraint(equalTo: trailingAnchor),
+//            imageView.topAnchor.constraint(equalTo: topAnchor),
+//            imageView.bottomAnchor.constraint(equalTo: bottomAnchor)
+//        ])
     }
     
     func prepare(item: PlaylistItem?) {

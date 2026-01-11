@@ -39,7 +39,6 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     
     convenience init(controller: PlaylistController?, delegate: VerticalFeedViewDelegate?) {
         self.init(frame: .zero)
-        self.backgroundColor = .clear
         
         self.controller = controller
         self.delegate = delegate

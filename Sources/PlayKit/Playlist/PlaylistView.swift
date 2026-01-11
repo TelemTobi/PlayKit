@@ -56,7 +56,6 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
         self.controller = controller
         self.gravity = gravity
         self.overlayForItemAtIndex = overlayForItemAtIndex
-        self.backgroundColor = .clear
     }
     
     public func makeUIView(context: Context) -> UIPlaylistView {

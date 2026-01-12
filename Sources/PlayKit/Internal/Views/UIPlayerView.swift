@@ -75,7 +75,6 @@ final class UIPlayerView: UIView {
             
         case let .video(_, url):
             let item = AVPlayerItem(url: url)
-            item.preferredForwardBufferDuration = 2.5
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
 
@@ -203,7 +202,6 @@ extension UIPlayerView {
             .sink { [weak self] status in
                 switch status {
                 case .readyToPlay:
-                    self?.player.preroll(atRate: 1.0)
                     self?.status.value = .ready
                     
                     let duration = self?.player.currentItem?.duration.seconds ?? .zero

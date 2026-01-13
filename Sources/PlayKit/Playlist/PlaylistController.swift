@@ -212,7 +212,6 @@ extension PlaylistController {
                 player.currentItem == nil else { break }
             
             let item = AVPlayerItem(url: url)
-            item.preferredForwardBufferDuration = 2.5
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
             

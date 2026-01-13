@@ -75,7 +75,6 @@ final class UIPlayerView: UIView {
             
         case let .video(_, url):
             let item = AVPlayerItem(url: url)
-            item.preferredForwardBufferDuration = 2.5
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
 

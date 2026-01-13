@@ -84,7 +84,6 @@ public final class PlaylistController: Identifiable {
     
     internal let backwardBuffer: Int
     internal let forwardBuffer: Int
-    
     var rangedItems: [PlaylistItem?] {
         ((currentIndex - backwardBuffer)...(currentIndex + forwardBuffer))
             .map { items[safe: $0] }
@@ -95,6 +94,7 @@ public final class PlaylistController: Identifiable {
     }
     
     internal let players: [AVPlayer]
+    internal var setIndexWithAnimation: Bool = false
     
     /// Creates a new controller.
     ///
@@ -177,10 +177,16 @@ public final class PlaylistController: Identifiable {
     
     /// Sets the current index if it differs and is within bounds.
     ///
-    /// - Parameter newValue: The desired index within ``items``.
-    public func setCurrentIndex(_ newValue: Int) {
+    /// - Parameters:
+    ///   - newValue: The desired index within ``items``.
+    ///   - animated: Whether UI surfaces that support animated jumps should
+    ///     animate the scroll. Currently only used by `.verticalFeed`;
+    ///     tap-through views ignore this flag and switch immediately.
+    public func setCurrentIndex(_ newValue: Int, animated: Bool = false) {
         guard currentIndex != newValue else { return }
+        
         if items.indices.contains(newValue) {
+            self.setIndexWithAnimation = animated
             self.currentIndex = newValue
         }
     }
@@ -218,17 +224,16 @@ public final class PlaylistController: Identifiable {
 extension PlaylistController {
     private func prepareInitialItemIfNeeded() {
         switch currentItem {
-        case let .image(url, _):
+        case let .image(_, url, _):
             Task {
                 await ImageProvider.shared.loadImage(from: url)
             }
             
-        case let .video(url):
+        case let .video(_, url):
             guard let player = players[safe: backwardBuffer],
                 player.currentItem == nil else { break }
             
             let item = AVPlayerItem(url: url)
-            item.preferredForwardBufferDuration = 2.5
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
             

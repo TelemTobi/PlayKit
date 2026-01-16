@@ -96,11 +96,13 @@ public final class PlaylistController: ObservableObject, Identifiable {
         initialIndex: Int = .zero,
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
-        isFocused: Bool = false
+        isFocused: Bool = false,
+        isPlaying: Bool = false
     ) {
         self.id = id
         self.items = items
         self.isFocused = isFocused
+        self.isPlaying = isPlaying
         self.backwardBuffer = backwardBuffer
         self.forwardBuffer = forwardBuffer
         

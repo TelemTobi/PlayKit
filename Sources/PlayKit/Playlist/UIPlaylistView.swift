@@ -233,7 +233,7 @@ public final class UIPlaylistView: UIView {
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isFocused in
-                if controller?.shouldPlayOnFocus == true {
+                if self?.controller?.shouldPlayOnFocus == true {
                     self?.controller?.isPlaying = isFocused
                 }
                 

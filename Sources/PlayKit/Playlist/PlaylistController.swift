@@ -61,6 +61,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// Indicates whether playback should be active for the current item.
     @Published public var isPlaying: Bool = false
 
+    public var shouldPlayOnFocus: Bool = true
+    
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal let backwardBuffer: Int
     internal let forwardBuffer: Int

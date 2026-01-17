@@ -74,6 +74,8 @@ public final class PlaylistController: Identifiable {
         willSet { isPlayingPublisher.value = newValue }
     }
     
+    public var shouldPlayOnFocus: Bool = true
+    
     @ObservationIgnored internal var itemsPublisher = CurrentValueSubject<[PlaylistItem], Never>([])
     @ObservationIgnored internal var currentIndexPublisher = CurrentValueSubject<Int, Never>(.zero)
     @ObservationIgnored internal var ratePublisher = CurrentValueSubject<Float, Never>(1)
@@ -114,15 +116,17 @@ public final class PlaylistController: Identifiable {
         id: AnyHashable = UUID().uuidString,
         items: [PlaylistItem] = [],
         initialIndex: Int = .zero,
+        isFocused: Bool = false,
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
-        isFocused: Bool = false
+        shouldPlayOnFocus: Bool = true
     ) {
         self.id = id
         self.items = items
         self.isFocused = isFocused
         self.backwardBuffer = backwardBuffer
         self.forwardBuffer = forwardBuffer
+        self.shouldPlayOnFocus = shouldPlayOnFocus
         
         let currentIndex = (items.indices.contains(initialIndex) || items.isEmpty) ? initialIndex : .zero
         self.currentIndex = currentIndex

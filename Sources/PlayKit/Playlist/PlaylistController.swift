@@ -96,15 +96,17 @@ public final class PlaylistController: ObservableObject, Identifiable {
         id: AnyHashable = UUID().uuidString,
         items: [PlaylistItem] = [],
         initialIndex: Int = .zero,
+        isFocused: Bool = false,
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
-        isFocused: Bool = false
+        shouldPlayOnFocus: Bool = true
     ) {
         self.id = id
         self.items = items
         self.isFocused = isFocused
         self.backwardBuffer = backwardBuffer
         self.forwardBuffer = forwardBuffer
+        self.shouldPlayOnFocus = shouldPlayOnFocus
         
         if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex

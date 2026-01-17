@@ -201,7 +201,6 @@ public final class UIPlaylistView: UIView {
                 prepareCurrentPlayer()
                 
                 if controller?.isFocused == true {
-                    controller?.isPlaying = true
                     currentPlayer?.alpha = 1
                     prepareRelativePlayers()
                 }
@@ -234,7 +233,10 @@ public final class UIPlaylistView: UIView {
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isFocused in
-                self?.controller?.isPlaying = isFocused
+                if self?.controller?.shouldPlayOnFocus == true {
+                    self?.controller?.isPlaying = isFocused
+                }
+                
                 guard self?.controller?.items.isEmpty == false else { return }
                 
                 if isFocused {

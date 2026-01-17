@@ -61,6 +61,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// Indicates whether playback should be active for the current item.
     @Published public var isPlaying: Bool = false
 
+    public var shouldPlayOnFocus: Bool = true
+    
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal let backwardBuffer: Int
     internal let forwardBuffer: Int
@@ -94,15 +96,17 @@ public final class PlaylistController: ObservableObject, Identifiable {
         id: AnyHashable = UUID().uuidString,
         items: [PlaylistItem] = [],
         initialIndex: Int = .zero,
+        isFocused: Bool = false,
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
-        isFocused: Bool = false
+        shouldPlayOnFocus: Bool = true
     ) {
         self.id = id
         self.items = items
         self.isFocused = isFocused
         self.backwardBuffer = backwardBuffer
         self.forwardBuffer = forwardBuffer
+        self.shouldPlayOnFocus = shouldPlayOnFocus
         
         if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex

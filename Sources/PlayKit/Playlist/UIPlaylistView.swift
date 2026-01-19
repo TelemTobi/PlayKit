@@ -300,6 +300,7 @@ public final class UIPlaylistView: UIView {
     
     private func prepareCurrentPlayer() {
         if let currentItem = controller?.currentItem {
+            currentPlayer?.alpha = 1
             currentPlayer?.prepare(item: currentItem)
         }
     }

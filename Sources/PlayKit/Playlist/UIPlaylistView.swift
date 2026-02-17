@@ -42,7 +42,7 @@ public final class UIPlaylistView: UIView {
     
     private var playlistType: PlaylistType = .tapThrough
     private weak var contentView: PlaylistContentView?
-    private var repeatIndex: Int = .zero
+    private var repeatIndex: Int = 1
     
     /// The controller that supplies playlist items and playback state.
     ///

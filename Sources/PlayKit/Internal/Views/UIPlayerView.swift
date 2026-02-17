@@ -68,12 +68,12 @@ final class UIPlayerView: UIView {
         guard let item else { return }
         
         switch item {
-        case let .image(_, url, duration):
+        case let .image(_, url, duration, _):
             durationInSeconds = duration
             progressInSeconds.value = .zero
             loadImage(from: url)
             
-        case let .video(_, url):
+        case let .video(_, url, _):
             let item = AVPlayerItem(url: url)
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
@@ -83,7 +83,7 @@ final class UIPlayerView: UIView {
             registerReachedEndSubscription()
             registerTimeControlStatusSubscription()
             
-        case let .custom(_, duration):
+        case let .custom(_, duration, _):
             durationInSeconds = duration
             progressInSeconds.value = .zero
             status.value = .ready
@@ -99,10 +99,10 @@ final class UIPlayerView: UIView {
         guard let item else { return }
         
         switch item {
-        case let .image(_, _, duration), let .custom(_, duration):
+        case let .image(_, _, duration, _), let .custom(_, duration, _):
             runNonVideoTimer(for: duration)
             
-        case let .video(_, url):
+        case let .video(_, url, _):
             guard player.rate.isZero else { return }
             
             NotificationCenter.default.post(
@@ -211,7 +211,7 @@ extension UIPlayerView {
                     self?.status.value = .error
                     self?.durationInSeconds = self?.errorDuration ?? .zero
                     
-                    if case let .video(_, url) = self?.item {
+                    if case let .video(_, url, _) = self?.item {
                         NotificationCenter.default.post(
                             name: PlayKit.videoErrorNotification,
                             object: PlayKit.NotificationPayload(url: url, error: self?.player.currentItem?.error)
@@ -254,7 +254,7 @@ extension UIPlayerView {
         timeControlStatusSubscription = player.publisher(for: \.timeControlStatus)
             .removeDuplicates()
             .sink { [weak self] status in
-                guard let self, case let .video(_, url) = item else { return }
+                guard let self, case let .video(_, url, _) = item else { return }
                 
                 switch status {
                 case .playing:

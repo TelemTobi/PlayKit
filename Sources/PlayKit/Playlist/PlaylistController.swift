@@ -148,13 +148,23 @@ public final class PlaylistController: ObservableObject, Identifiable {
     }
     
     /// Advances to the next item, clamping to the end of the playlist.
-    public func advanceToNext() {
-        self.currentIndex = min(currentIndex + 1, items.count - 1)
+    ///
+    /// - Parameter animated: Whether UI surfaces that support animated jumps
+    ///   should animate the scroll. Currently only used by `.verticalFeed`;
+    ///   tap-through views ignore this flag and switch immediately.
+    public func advanceToNext(animated: Bool = false) {
+        let nextIndex = min(currentIndex + 1, items.count - 1)
+        setCurrentIndex(nextIndex, animated: animated)
     }
     
     /// Moves to the previous item, clamping to the start of the playlist.
-    public func moveToPrevious() {
-        self.currentIndex = max(currentIndex - 1, 0)
+    ///
+    /// - Parameter animated: Whether UI surfaces that support animated jumps
+    ///   should animate the scroll. Currently only used by `.verticalFeed`;
+    ///   tap-through views ignore this flag and switch immediately.
+    public func moveToPrevious(animated: Bool = false) {
+        let previousIndex = max(currentIndex - 1, 0)
+        setCurrentIndex(previousIndex, animated: animated)
     }
     
     /// Sets the current index if it differs and is within bounds.
@@ -206,12 +216,12 @@ public final class PlaylistController: ObservableObject, Identifiable {
 extension PlaylistController {
     private func prepareInitialItemIfNeeded() {
         switch currentItem {
-        case let .image(_, url, _):
+        case let .image(_, url, _, _):
             Task {
                 await ImageProvider.shared.loadImage(from: url)
             }
             
-        case let .video(_, url):
+        case let .video(_, url, _):
             guard let player = players[safe: backwardBuffer],
                 player.currentItem == nil else { break }
             

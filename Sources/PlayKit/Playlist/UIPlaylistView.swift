@@ -42,6 +42,7 @@ public final class UIPlaylistView: UIView {
     
     private var playlistType: PlaylistType = .tapThrough
     private weak var contentView: PlaylistContentView?
+    private var repeatIndex: Int = .zero
     
     /// The controller that supplies playlist items and playback state.
     ///
@@ -168,23 +169,31 @@ public final class UIPlaylistView: UIView {
                 }
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] in
-                    switch self?.playlistType {
-                    case .tapThrough:
-                        self?.controller?.itemReachedEnd.send()
-                        
+                    self?.controller?.itemReachedEnd.send()
+                    
+                    switch self?.currentPlayer?.item?.playbackBehavior {
+                    case .playOnce:
                         if (self?.controller?.currentIndex ?? .zero) < (self?.controller?.items.count ?? .zero) - 1 {
                             self?.controller?.advanceToNext()
                         }
                         
-                    case .verticalFeed:
-                        self?.controller?.itemReachedEnd.send()
+                    case .loop:
                         self?.currentPlayer?.seekToBeginning()
                         self?.currentPlayer?.playWhenReady()
+                        
+                    case let .repeat(count):
+                        if (self?.repeatIndex ?? .zero) < count {
+                            self?.currentPlayer?.seekToBeginning()
+                            self?.currentPlayer?.playWhenReady()
+                            self?.repeatIndex += 1
+                            
+                        } else if (self?.controller?.currentIndex ?? .zero) < (self?.controller?.items.count ?? .zero) - 1 {
+                            self?.controller?.advanceToNext()
+                        }
                         
                     case .none:
                         break
                     }
-                    
                 }
                 .store(in: &reachedEndSubscriptions)
         }
@@ -269,6 +278,7 @@ public final class UIPlaylistView: UIView {
                 self?.currentPlayer?.pause()
                 self?.updatePlayers()
                 self?.transitionToCurrentPlayer()
+                self?.repeatIndex = 1
                 
                 Task { [newIndex] in
                     try? await Task.sleep(interval: 0.1)

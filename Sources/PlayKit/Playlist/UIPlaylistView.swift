@@ -173,9 +173,7 @@ public final class UIPlaylistView: UIView {
                     
                     switch self?.currentPlayer?.item?.playbackBehavior {
                     case .playOnce:
-                        if (self?.controller?.currentIndex ?? .zero) < (self?.controller?.items.count ?? .zero) - 1 {
-                            self?.controller?.advanceToNext()
-                        }
+                        self?.controller?.advanceToNext(animated: self?.playlistType == .verticalFeed)
                         
                     case .loop:
                         self?.currentPlayer?.seekToBeginning()
@@ -186,9 +184,8 @@ public final class UIPlaylistView: UIView {
                             self?.currentPlayer?.seekToBeginning()
                             self?.currentPlayer?.playWhenReady()
                             self?.repeatIndex += 1
-                            
-                        } else if (self?.controller?.currentIndex ?? .zero) < (self?.controller?.items.count ?? .zero) - 1 {
-                            self?.controller?.advanceToNext()
+                        } else {
+                            self?.controller?.advanceToNext(animated: self?.playlistType == .verticalFeed)
                         }
                         
                     case .none:

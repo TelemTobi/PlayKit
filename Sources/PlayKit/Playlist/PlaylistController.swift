@@ -52,6 +52,11 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// Emitted on every item completion, not just when the playlist reaches its
     /// final item.
     public internal(set) var itemReachedEnd = PassthroughSubject<Void, Never>()
+    
+    /// Publishes when the playlist finished playing.
+    ///
+    /// Emitted on completion of the playlist's last item.
+    public internal(set) var playlistReachedEnd = PassthroughSubject<Void, Never>()
 
     /// Indicates whether the playlist currently has UI focus.
     ///

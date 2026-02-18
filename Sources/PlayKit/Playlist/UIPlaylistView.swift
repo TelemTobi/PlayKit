@@ -169,28 +169,7 @@ public final class UIPlaylistView: UIView {
                 }
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] in
-                    self?.controller?.itemReachedEnd.send()
-                    
-                    switch self?.currentPlayer?.item?.playbackBehavior {
-                    case .playOnce:
-                        self?.controller?.advanceToNext(animated: self?.playlistType == .verticalFeed)
-                        
-                    case .loop:
-                        self?.currentPlayer?.seekToBeginning()
-                        self?.currentPlayer?.playWhenReady()
-                        
-                    case let .repeat(count):
-                        if (self?.repeatIndex ?? .zero) < count {
-                            self?.currentPlayer?.seekToBeginning()
-                            self?.currentPlayer?.playWhenReady()
-                            self?.repeatIndex += 1
-                        } else {
-                            self?.controller?.advanceToNext(animated: self?.playlistType == .verticalFeed)
-                        }
-                        
-                    case .none:
-                        break
-                    }
+                    self?.onCurrentPlayerReachedEnd()
                 }
                 .store(in: &reachedEndSubscriptions)
         }
@@ -380,6 +359,39 @@ public final class UIPlaylistView: UIView {
             
         case .verticalFeed:
             break
+        }
+    }
+    
+    private func onCurrentPlayerReachedEnd() {
+        controller?.itemReachedEnd.send()
+        
+        switch currentPlayer?.item?.playbackBehavior {
+        case .playOnce:
+            advanceToNextItem()
+            
+        case .loop:
+            currentPlayer?.seekToBeginning()
+            currentPlayer?.playWhenReady()
+            
+        case let .repeat(count):
+            if repeatIndex < count {
+                currentPlayer?.seekToBeginning()
+                currentPlayer?.playWhenReady()
+                repeatIndex += 1
+            } else {
+                advanceToNextItem()
+            }
+            
+        case .none:
+            break
+        }
+    }
+    
+    private func advanceToNextItem() {
+        if controller?.currentIndex == (controller?.items.count ?? .zero) - 1 {
+            controller?.playlistReachedEnd.send()
+        } else {
+            controller?.advanceToNext(animated: playlistType == .verticalFeed)
         }
     }
 }

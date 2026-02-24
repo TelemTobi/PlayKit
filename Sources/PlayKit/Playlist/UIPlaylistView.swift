@@ -58,6 +58,13 @@ public final class UIPlaylistView: UIView {
             players.forEach { $0.setGravity(newValue) }
         }
     }
+
+    /// Indicates whether the receiver should apply the current selection criteria automatically to AVPlayerItems.
+    public var appliesMediaSelectionCriteriaAutomatically: Bool = true {
+        willSet {
+            players.forEach { $0.appliesMediaSelectionCriteriaAutomatically = newValue }
+        }
+    }
     
     /// Provides an optional overlay for the item at the given index.
     ///

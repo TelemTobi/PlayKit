@@ -41,6 +41,10 @@ final class UIPlayerView: UIView {
         return imageView
     }()
     
+    var appliesMediaSelectionCriteriaAutomatically: Bool = true {
+        willSet { player.appliesMediaSelectionCriteriaAutomatically = newValue }
+    }
+    
     convenience init(player: AVPlayer) {
         self.init(frame: .zero)
         self.player = player

@@ -47,6 +47,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// The total duration, in seconds, of the current item when available.
     @Published public internal(set) var durationInSeconds: TimeInterval = .zero
     
+    @Published public internal(set) var hasClosedCaptions: Bool = false
+    
     /// Publishes each time the current item finishes playing.
     ///
     /// Emitted on every item completion, not just when the playlist reaches its
@@ -65,8 +67,14 @@ public final class PlaylistController: ObservableObject, Identifiable {
     
     /// Indicates whether playback should be active for the current item.
     @Published public var isPlaying: Bool = false
+    
+    /// Indicates whether the receiver should apply the current selection criteria automatically to AVPlayerItems.
+    @Published internal var appliesMediaSelectionCriteriaAutomatically: Bool = true
 
     public var shouldPlayOnFocus: Bool = true
+    public var showsBuiltInClosedCaptions: Bool = true {
+        willSet { appliesMediaSelectionCriteriaAutomatically = newValue }
+    }
     
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal let backwardBuffer: Int

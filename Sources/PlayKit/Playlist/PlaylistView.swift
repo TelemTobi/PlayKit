@@ -17,7 +17,6 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     let playlistType: PlaylistType
     let controller: PlaylistController
     let gravity: AVLayerVideoGravity
-    let appliesMediaSelectionCriteriaAutomatically: Bool
     let overlayForItemAtIndex: ((Int) -> Overlay)?
     
     /// Creates a playlist view.
@@ -30,13 +29,11 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     public init(
         type: PlaylistType,
         controller: PlaylistController,
-        gravity: AVLayerVideoGravity = .resizeAspect,
-        appliesMediaSelectionCriteriaAutomatically: Bool = true
+        gravity: AVLayerVideoGravity = .resizeAspect
     ) where Overlay == EmptyView {
         self.playlistType = type
         self.controller = controller
         self.gravity = gravity
-        self.appliesMediaSelectionCriteriaAutomatically = appliesMediaSelectionCriteriaAutomatically
         self.overlayForItemAtIndex = nil
     }
     
@@ -52,13 +49,11 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
         type: PlaylistType,
         controller: PlaylistController,
         gravity: AVLayerVideoGravity = .resizeAspect,
-        appliesMediaSelectionCriteriaAutomatically: Bool = true,
         @ViewBuilder overlayForItemAtIndex: @escaping (Int) -> Overlay
     ) {
         self.playlistType = type
         self.controller = controller
         self.gravity = gravity
-        self.appliesMediaSelectionCriteriaAutomatically = appliesMediaSelectionCriteriaAutomatically
         self.overlayForItemAtIndex = overlayForItemAtIndex
     }
     
@@ -66,7 +61,6 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
         let playlistView = UIPlaylistView()
         playlistView.initialize(type: playlistType, controller: controller)
         playlistView.gravity = gravity
-        playlistView.appliesMediaSelectionCriteriaAutomatically = appliesMediaSelectionCriteriaAutomatically
         playlistView.overlayForItemAtIndex = { index in
             guard let overlay = overlayForItemAtIndex?(index) else { return nil }
             return UIHostingController(rootView: overlay).view

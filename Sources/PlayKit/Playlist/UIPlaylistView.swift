@@ -29,6 +29,7 @@ public final class UIPlaylistView: UIView {
     private var progressSubscription: AnyCancellable?
     private var indexSubscription: AnyCancellable?
     private var rateSubscription: AnyCancellable?
+    private var mediaSelectionSubscription: AnyCancellable?
     
     private var currentPlayer: UIPlayerView? {
         guard let backwardBuffer = controller?.backwardBuffer else { return nil }
@@ -56,13 +57,6 @@ public final class UIPlaylistView: UIView {
     public var gravity: AVLayerVideoGravity = .resizeAspect {
         willSet {
             players.forEach { $0.setGravity(newValue) }
-        }
-    }
-
-    /// Indicates whether the receiver should apply the current selection criteria automatically to AVPlayerItems.
-    public var appliesMediaSelectionCriteriaAutomatically: Bool = true {
-        willSet {
-            players.forEach { $0.appliesMediaSelectionCriteriaAutomatically = newValue }
         }
     }
     
@@ -156,6 +150,7 @@ public final class UIPlaylistView: UIView {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] newStatus in
                     self?.controller?.status = newStatus
+                    self?.controller?.hasClosedCaptions = player.hasClosedCaptions
                 }
                 .store(in: &statusSubscriptions)
             
@@ -283,6 +278,17 @@ public final class UIPlaylistView: UIView {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] rate in
                 self?.currentPlayer?.setRate(rate)
+            }
+    }
+    
+    private func subscribeToMediaSelection() {
+        mediaSelectionSubscription?.cancel()
+        
+        mediaSelectionSubscription = controller?.$appliesMediaSelectionCriteriaAutomatically
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newValue in
+                self?.players.forEach { $0.appliesMediaSelectionCriteriaAutomatically = newValue }
             }
     }
     

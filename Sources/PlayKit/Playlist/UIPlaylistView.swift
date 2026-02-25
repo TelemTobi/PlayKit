@@ -97,6 +97,7 @@ public final class UIPlaylistView: UIView {
         subscribeToProgress()
         subscribeToCurrentIndex()
         subscribeToRate()
+        subscribeToMediaSelection()
         prepareCurrentPlayer()
     }
     

@@ -222,7 +222,6 @@ extension UIPlayerView {
                        }) {
                         self?.hasClosedCaptions = true
                     }
-                }
                     
                 case .failed:
                     self?.status.value = .error

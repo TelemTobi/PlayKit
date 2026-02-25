@@ -216,9 +216,13 @@ extension UIPlayerView {
                     
                     if let asset = self?.player.currentItem?.asset,
                        let legibleGroup = asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
-                       !legibleGroup.options.isEmpty {
+                       legibleGroup.options.contains(where: {
+                           $0.hasMediaCharacteristic(.transcribesSpokenDialogForAccessibility) ||
+                           $0.hasMediaCharacteristic(.describesMusicAndSoundForAccessibility)
+                       }) {
                         self?.hasClosedCaptions = true
                     }
+                }
                     
                 case .failed:
                     self?.status.value = .error

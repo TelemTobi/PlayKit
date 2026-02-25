@@ -215,15 +215,11 @@ extension UIPlayerView {
                     self?.durationInSeconds = (duration.isNaN || duration.isInfinite) ? .zero : duration
                     
                     if let asset = self?.player.currentItem?.asset,
-                       let legibleGroup = asset.mediaSelectionGroup(forMediaCharacteristic: .legible) {
-                       
-                        print("🩵", legibleGroup.options.map { $0.description })
-                        if legibleGroup.options.contains(where: {
-                           $0.hasMediaCharacteristic(.transcribesSpokenDialogForAccessibility) ||
-                           $0.hasMediaCharacteristic(.describesMusicAndSoundForAccessibility)
-                        }) {
-                            self?.hasClosedCaptions = true
-                        }
+                       let legibleGroup = asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+                       legibleGroup.options.contains(where: {
+                           $0.mediaType == .subtitle || $0.mediaType == .closedCaption
+                       }) {
+                        self?.hasClosedCaptions = true
                     }
                     
                 case .failed:

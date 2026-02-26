@@ -225,7 +225,7 @@ extension UIPlayerView {
                     if let asset = self?.player.currentItem?.asset,
                        let legibleGroup = asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
                        legibleGroup.options.contains(where: {
-                           $0.mediaType == .subtitle || $0.mediaType == .closedCaption
+                           ($0.mediaType == .subtitle || $0.mediaType == .closedCaption) && $0.extendedLanguageTag != nil
                        }) {
                         self?.hasClosedCaptions = true
                     }

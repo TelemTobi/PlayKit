@@ -29,6 +29,7 @@ public final class UIPlaylistView: UIView {
     private var progressSubscription: AnyCancellable?
     private var indexSubscription: AnyCancellable?
     private var rateSubscription: AnyCancellable?
+    private var mediaSelectionSubscription: AnyCancellable?
     
     private var currentPlayer: UIPlayerView? {
         guard let backwardBuffer = controller?.backwardBuffer else { return nil }
@@ -96,6 +97,7 @@ public final class UIPlaylistView: UIView {
         subscribeToProgress()
         subscribeToCurrentIndex()
         subscribeToRate()
+        subscribeToBuiltInCaptions()
         prepareCurrentPlayer()
     }
     
@@ -149,6 +151,7 @@ public final class UIPlaylistView: UIView {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] newStatus in
                     self?.controller?.status = newStatus
+                    self?.controller?.hasCaptions = player.hasCaptions
                 }
                 .store(in: &statusSubscriptions)
             
@@ -255,6 +258,7 @@ public final class UIPlaylistView: UIView {
                 self?.updatePlayers()
                 self?.transitionToCurrentPlayer()
                 self?.repeatIndex = 1
+                self?.controller?.hasCaptions = self?.currentPlayer?.hasCaptions ?? false
                 
                 Task { [newIndex] in
                     try? await Task.sleep(interval: 0.1)
@@ -276,6 +280,17 @@ public final class UIPlaylistView: UIView {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] rate in
                 self?.currentPlayer?.setRate(rate)
+            }
+    }
+    
+    private func subscribeToBuiltInCaptions() {
+        mediaSelectionSubscription?.cancel()
+        
+        mediaSelectionSubscription = controller?.$showsCaptions
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newValue in
+                self?.players.forEach { $0.setShowsBuiltInClosedCaptions(newValue) }
             }
     }
     

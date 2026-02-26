@@ -24,6 +24,7 @@ final class UIPlayerView: UIView {
 
     private(set) var durationInSeconds: TimeInterval = .zero
     private(set) var progressInSeconds = CurrentValueSubject<TimeInterval, Never>(.zero)
+    private(set) var hasCaptions: Bool = false
     
     private var statusSubscription: AnyCancellable?
     private var reachedEndSubscription: AnyCancellable?
@@ -44,6 +45,7 @@ final class UIPlayerView: UIView {
     convenience init(player: AVPlayer) {
         self.init(frame: .zero)
         self.player = player
+        self.player.appliesMediaSelectionCriteriaAutomatically = false
         
         playerLayer.player = player
         playerLayer.backgroundColor = UIColor.clear.cgColor
@@ -64,6 +66,7 @@ final class UIPlayerView: UIView {
         cancel()
         self.item = item
         self.status.value = .loading
+        self.hasCaptions = false
         
         guard let item else { return }
         
@@ -159,6 +162,7 @@ final class UIPlayerView: UIView {
         progressInSeconds.value = .zero
         durationInSeconds = .zero
         timerSubscription?.cancel()
+        hasCaptions = false
     }
     
     func setGravity(_ gravity: AVLayerVideoGravity) {
@@ -192,6 +196,19 @@ final class UIPlayerView: UIView {
         self.rate = rate
         player.rate = rate
     }
+    
+    func setShowsBuiltInClosedCaptions(_ newValue: Bool) {
+        guard let playerItem = player.currentItem,
+              let legibleGroup = playerItem.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+              let captionsOption = legibleGroup.options.first(where: { $0.mediaType == .subtitle || $0.mediaType == .closedCaption })
+        else { return }
+        
+        if newValue {
+            player.currentItem?.select(captionsOption, in: legibleGroup)
+        } else {
+            player.currentItem?.select(nil, in: legibleGroup)
+        }
+    }
 }
 
 extension UIPlayerView {
@@ -202,10 +219,18 @@ extension UIPlayerView {
             .sink { [weak self] status in
                 switch status {
                 case .readyToPlay:
-                    self?.status.value = .ready
-                    
                     let duration = self?.player.currentItem?.duration.seconds ?? .zero
                     self?.durationInSeconds = (duration.isNaN || duration.isInfinite) ? .zero : duration
+                    
+                    if let asset = self?.player.currentItem?.asset,
+                       let legibleGroup = asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+                       legibleGroup.options.contains(where: {
+                           ($0.mediaType == .subtitle || $0.mediaType == .closedCaption) && $0.extendedLanguageTag != nil
+                       }) {
+                        self?.hasCaptions = true
+                    }
+                    
+                    self?.status.value = .ready
                     
                 case .failed:
                     self?.status.value = .error

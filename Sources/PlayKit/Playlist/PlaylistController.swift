@@ -47,6 +47,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// The total duration, in seconds, of the current item when available.
     @Published public internal(set) var durationInSeconds: TimeInterval = .zero
     
+    @Published public internal(set) var hasCaptions: Bool = false
+    
     /// Publishes each time the current item finishes playing.
     ///
     /// Emitted on every item completion, not just when the playlist reaches its
@@ -65,6 +67,9 @@ public final class PlaylistController: ObservableObject, Identifiable {
     
     /// Indicates whether playback should be active for the current item.
     @Published public var isPlaying: Bool = false
+    
+    /// Indicates whether subtitle or closedCaption options should be displayed.
+    @Published public var showsCaptions: Bool = false
 
     public var shouldPlayOnFocus: Bool = true
     

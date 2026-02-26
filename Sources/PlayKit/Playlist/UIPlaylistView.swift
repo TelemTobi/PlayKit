@@ -151,7 +151,7 @@ public final class UIPlaylistView: UIView {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] newStatus in
                     self?.controller?.status = newStatus
-                    self?.controller?.hasClosedCaptions = player.hasClosedCaptions
+                    self?.controller?.hasCaptions = player.hasCaptions
                 }
                 .store(in: &statusSubscriptions)
             
@@ -258,7 +258,7 @@ public final class UIPlaylistView: UIView {
                 self?.updatePlayers()
                 self?.transitionToCurrentPlayer()
                 self?.repeatIndex = 1
-                self?.controller?.hasClosedCaptions = self?.currentPlayer?.hasClosedCaptions ?? false
+                self?.controller?.hasCaptions = self?.currentPlayer?.hasCaptions ?? false
                 
                 Task { [newIndex] in
                     try? await Task.sleep(interval: 0.1)
@@ -286,7 +286,7 @@ public final class UIPlaylistView: UIView {
     private func subscribeToBuiltInCaptions() {
         mediaSelectionSubscription?.cancel()
         
-        mediaSelectionSubscription = controller?.$showsBuiltInCaptions
+        mediaSelectionSubscription = controller?.$showsCaptions
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newValue in

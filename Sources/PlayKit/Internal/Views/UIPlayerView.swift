@@ -24,7 +24,7 @@ final class UIPlayerView: UIView {
 
     private(set) var durationInSeconds: TimeInterval = .zero
     private(set) var progressInSeconds = CurrentValueSubject<TimeInterval, Never>(.zero)
-    private(set) var hasClosedCaptions: Bool = false
+    private(set) var hasCaptions: Bool = false
     
     private var statusSubscription: AnyCancellable?
     private var reachedEndSubscription: AnyCancellable?
@@ -66,7 +66,7 @@ final class UIPlayerView: UIView {
         cancel()
         self.item = item
         self.status.value = .loading
-        self.hasClosedCaptions = false
+        self.hasCaptions = false
         
         guard let item else { return }
         
@@ -162,7 +162,7 @@ final class UIPlayerView: UIView {
         progressInSeconds.value = .zero
         durationInSeconds = .zero
         timerSubscription?.cancel()
-        hasClosedCaptions = false
+        hasCaptions = false
     }
     
     func setGravity(_ gravity: AVLayerVideoGravity) {
@@ -227,7 +227,7 @@ extension UIPlayerView {
                        legibleGroup.options.contains(where: {
                            ($0.mediaType == .subtitle || $0.mediaType == .closedCaption) && $0.extendedLanguageTag != nil
                        }) {
-                        self?.hasClosedCaptions = true
+                        self?.hasCaptions = true
                     }
                     
                     self?.status.value = .ready

@@ -199,6 +199,19 @@ final class UIPlayerView: UIView {
         self.rate = rate
         player.rate = rate
     }
+    
+    func setShowsBuiltInClosedCaptions(_ newValue: Bool) {
+        guard let playerItem = player.currentItem,
+              let legibleGroup = playerItem.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+              let captionsOption = legibleGroup.options.first(where: { $0.mediaType == .subtitle || $0.mediaType == .closedCaption })
+        else { return }
+        
+        if newValue {
+            player.currentItem?.select(captionsOption, in: legibleGroup)
+        } else {
+            player.currentItem?.select(nil, in: legibleGroup)
+        }
+    }
 }
 
 extension UIPlayerView {

@@ -290,6 +290,7 @@ public final class UIPlaylistView: UIView {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newValue in
                 self?.players.forEach { $0.appliesMediaSelectionCriteriaAutomatically = newValue }
+                self?.players.forEach { $0.setShowsBuiltInClosedCaptions(newValue) }
             }
     }
     

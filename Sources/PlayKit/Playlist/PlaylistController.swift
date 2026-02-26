@@ -69,7 +69,7 @@ public final class PlaylistController: ObservableObject, Identifiable {
     @Published public var isPlaying: Bool = false
     
     /// Indicates whether subtitle or closedCaption options should be displayed.
-    @Published public var showsBuiltInCaptions: Bool = true
+    @Published public var showsBuiltInCaptions: Bool = false
 
     public var shouldPlayOnFocus: Bool = true
     

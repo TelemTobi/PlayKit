@@ -258,6 +258,7 @@ public final class UIPlaylistView: UIView {
                 self?.updatePlayers()
                 self?.transitionToCurrentPlayer()
                 self?.repeatIndex = 1
+                self?.controller?.hasClosedCaptions = self?.currentPlayer?.hasClosedCaptions ?? false
                 
                 Task { [newIndex] in
                     try? await Task.sleep(interval: 0.1)

@@ -219,8 +219,6 @@ extension UIPlayerView {
             .sink { [weak self] status in
                 switch status {
                 case .readyToPlay:
-                    self?.status.value = .ready
-                    
                     let duration = self?.player.currentItem?.duration.seconds ?? .zero
                     self?.durationInSeconds = (duration.isNaN || duration.isInfinite) ? .zero : duration
                     
@@ -231,6 +229,8 @@ extension UIPlayerView {
                        }) {
                         self?.hasClosedCaptions = true
                     }
+                    
+                    self?.status.value = .ready
                     
                 case .failed:
                     self?.status.value = .error

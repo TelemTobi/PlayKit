@@ -45,6 +45,7 @@ final class UIPlayerView: UIView {
     convenience init(player: AVPlayer) {
         self.init(frame: .zero)
         self.player = player
+        self.player.appliesMediaSelectionCriteriaAutomatically = false
         
         playerLayer.player = player
         playerLayer.backgroundColor = UIColor.clear.cgColor

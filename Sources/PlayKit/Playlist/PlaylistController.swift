@@ -68,13 +68,10 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// Indicates whether playback should be active for the current item.
     @Published public var isPlaying: Bool = false
     
-    /// Indicates whether the receiver should apply the current selection criteria automatically to AVPlayerItems.
-    @Published internal var appliesMediaSelectionCriteriaAutomatically: Bool = true
+    /// Indicates whether subtitle or closedCaption options should be displayed.
+    @Published public var showsBuiltInCaptions: Bool = true
 
     public var shouldPlayOnFocus: Bool = true
-    public var showsBuiltInClosedCaptions: Bool = true {
-        willSet { appliesMediaSelectionCriteriaAutomatically = newValue }
-    }
     
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal let backwardBuffer: Int

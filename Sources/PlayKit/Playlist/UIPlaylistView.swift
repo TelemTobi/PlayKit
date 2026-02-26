@@ -97,7 +97,7 @@ public final class UIPlaylistView: UIView {
         subscribeToProgress()
         subscribeToCurrentIndex()
         subscribeToRate()
-        subscribeToMediaSelection()
+        subscribeToBuiltInCaptions()
         prepareCurrentPlayer()
     }
     
@@ -282,14 +282,13 @@ public final class UIPlaylistView: UIView {
             }
     }
     
-    private func subscribeToMediaSelection() {
+    private func subscribeToBuiltInCaptions() {
         mediaSelectionSubscription?.cancel()
         
-        mediaSelectionSubscription = controller?.$appliesMediaSelectionCriteriaAutomatically
+        mediaSelectionSubscription = controller?.$showsBuiltInCaptions
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newValue in
-                self?.players.forEach { $0.appliesMediaSelectionCriteriaAutomatically = newValue }
                 self?.players.forEach { $0.setShowsBuiltInClosedCaptions(newValue) }
             }
     }

@@ -24,6 +24,7 @@ final class UIPlayerView: UIView {
 
     private(set) var durationInSeconds: TimeInterval = .zero
     private(set) var progressInSeconds = CurrentValueSubject<TimeInterval, Never>(.zero)
+    private(set) var hasCaptions: Bool = false
     
     private var statusSubscription: AnyCancellable?
     private var reachedEndSubscription: AnyCancellable?
@@ -44,6 +45,7 @@ final class UIPlayerView: UIView {
     convenience init(player: AVPlayer) {
         self.init(frame: .zero)
         self.player = player
+        self.player.appliesMediaSelectionCriteriaAutomatically = false
         
         playerLayer.player = player
         playerLayer.backgroundColor = UIColor.clear.cgColor
@@ -64,16 +66,17 @@ final class UIPlayerView: UIView {
         cancel()
         self.item = item
         self.status.value = .loading
+        self.hasCaptions = false
         
         guard let item else { return }
         
         switch item {
-        case let .image(_, url, duration):
+        case let .image(_, url, duration, _):
             durationInSeconds = duration
             progressInSeconds.value = .zero
             loadImage(from: url)
             
-        case let .video(_, url):
+        case let .video(_, url, _):
             let item = AVPlayerItem(url: url)
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
@@ -83,7 +86,7 @@ final class UIPlayerView: UIView {
             registerReachedEndSubscription()
             registerTimeControlStatusSubscription()
             
-        case let .custom(_, duration):
+        case let .custom(_, duration, _):
             durationInSeconds = duration
             progressInSeconds.value = .zero
             status.value = .ready
@@ -99,10 +102,10 @@ final class UIPlayerView: UIView {
         guard let item else { return }
         
         switch item {
-        case let .image(_, _, duration), let .custom(_, duration):
+        case let .image(_, _, duration, _), let .custom(_, duration, _):
             runNonVideoTimer(for: duration)
             
-        case let .video(_, url):
+        case let .video(_, url, _):
             guard player.rate.isZero else { return }
             
             NotificationCenter.default.post(
@@ -159,6 +162,7 @@ final class UIPlayerView: UIView {
         progressInSeconds.value = .zero
         durationInSeconds = .zero
         timerSubscription?.cancel()
+        hasCaptions = false
     }
     
     func setGravity(_ gravity: AVLayerVideoGravity) {
@@ -192,6 +196,19 @@ final class UIPlayerView: UIView {
         self.rate = rate
         player.rate = rate
     }
+    
+    func setShowsBuiltInClosedCaptions(_ newValue: Bool) {
+        guard let playerItem = player.currentItem,
+              let legibleGroup = playerItem.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+              let captionsOption = legibleGroup.options.first(where: { $0.mediaType == .subtitle || $0.mediaType == .closedCaption })
+        else { return }
+        
+        if newValue {
+            player.currentItem?.select(captionsOption, in: legibleGroup)
+        } else {
+            player.currentItem?.select(nil, in: legibleGroup)
+        }
+    }
 }
 
 extension UIPlayerView {
@@ -202,16 +219,24 @@ extension UIPlayerView {
             .sink { [weak self] status in
                 switch status {
                 case .readyToPlay:
-                    self?.status.value = .ready
-                    
                     let duration = self?.player.currentItem?.duration.seconds ?? .zero
                     self?.durationInSeconds = (duration.isNaN || duration.isInfinite) ? .zero : duration
+                    
+                    if let asset = self?.player.currentItem?.asset,
+                       let legibleGroup = asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+                       legibleGroup.options.contains(where: {
+                           ($0.mediaType == .subtitle || $0.mediaType == .closedCaption) && $0.extendedLanguageTag != nil
+                       }) {
+                        self?.hasCaptions = true
+                    }
+                    
+                    self?.status.value = .ready
                     
                 case .failed:
                     self?.status.value = .error
                     self?.durationInSeconds = self?.errorDuration ?? .zero
                     
-                    if case let .video(_, url) = self?.item {
+                    if case let .video(_, url, _) = self?.item {
                         NotificationCenter.default.post(
                             name: PlayKit.videoErrorNotification,
                             object: PlayKit.NotificationPayload(url: url, error: self?.player.currentItem?.error)
@@ -254,7 +279,7 @@ extension UIPlayerView {
         timeControlStatusSubscription = player.publisher(for: \.timeControlStatus)
             .removeDuplicates()
             .sink { [weak self] status in
-                guard let self, case let .video(_, url) = item else { return }
+                guard let self, case let .video(_, url, _) = item else { return }
                 
                 switch status {
                 case .playing:

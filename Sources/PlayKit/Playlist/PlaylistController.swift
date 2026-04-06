@@ -55,12 +55,20 @@ public final class PlaylistController: Identifiable {
     /// The total duration, in seconds, of the current item when available.
     public internal(set) var durationInSeconds: TimeInterval = .zero
     
+    /// Indicates whether the current item has built in captions.
+    public internal(set) var hasCaptions: Bool = false
+    
     /// Publishes each time the current item finishes playing.
     ///
     /// Emitted on every item completion, not just when the playlist reaches its
     /// final item.
     @ObservationIgnored
     public internal(set) var itemReachedEnd = PassthroughSubject<Void, Never>()
+    
+    /// Publishes when the playlist finished playing.
+    ///
+    /// Emitted on completion of the playlist's last item.
+    public internal(set) var playlistReachedEnd = PassthroughSubject<Void, Never>()
 
     /// Indicates whether the playlist currently has UI focus.
     ///
@@ -74,6 +82,11 @@ public final class PlaylistController: Identifiable {
         willSet { isPlayingPublisher.value = newValue }
     }
     
+    /// Indicates whether subtitle or closedCaption options should be displayed.
+    public var showsCaptions: Bool = false {
+        willSet { showsCaptionsPublisher.value = newValue }
+    }
+    
     public var shouldPlayOnFocus: Bool = true
     
     @ObservationIgnored internal var itemsPublisher = CurrentValueSubject<[PlaylistItem], Never>([])
@@ -81,6 +94,7 @@ public final class PlaylistController: Identifiable {
     @ObservationIgnored internal var ratePublisher = CurrentValueSubject<Float, Never>(1)
     @ObservationIgnored internal var isFocusedPublisher = CurrentValueSubject<Bool, Never>(false)
     @ObservationIgnored internal var isPlayingPublisher = CurrentValueSubject<Bool, Never>(false)
+    @ObservationIgnored internal var showsCaptionsPublisher = CurrentValueSubject<Bool, Never>(false)
     
     @ObservationIgnored internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     
@@ -170,13 +184,23 @@ public final class PlaylistController: Identifiable {
     }
     
     /// Advances to the next item, clamping to the end of the playlist.
-    public func advanceToNext() {
-        self.currentIndex = min(currentIndex + 1, items.count - 1)
+    ///
+    /// - Parameter animated: Whether UI surfaces that support animated jumps
+    ///   should animate the scroll. Currently only used by `.verticalFeed`;
+    ///   tap-through views ignore this flag and switch immediately.
+    public func advanceToNext(animated: Bool = false) {
+        let nextIndex = min(currentIndex + 1, items.count - 1)
+        setCurrentIndex(nextIndex, animated: animated)
     }
     
     /// Moves to the previous item, clamping to the start of the playlist.
-    public func moveToPrevious() {
-        self.currentIndex = max(currentIndex - 1, 0)
+    ///
+    /// - Parameter animated: Whether UI surfaces that support animated jumps
+    ///   should animate the scroll. Currently only used by `.verticalFeed`;
+    ///   tap-through views ignore this flag and switch immediately.
+    public func moveToPrevious(animated: Bool = false) {
+        let previousIndex = max(currentIndex - 1, 0)
+        setCurrentIndex(previousIndex, animated: animated)
     }
     
     /// Sets the current index if it differs and is within bounds.
@@ -228,12 +252,12 @@ public final class PlaylistController: Identifiable {
 extension PlaylistController {
     private func prepareInitialItemIfNeeded() {
         switch currentItem {
-        case let .image(_, url, _):
+        case let .image(_, url, _, _):
             Task {
                 await ImageProvider.shared.loadImage(from: url)
             }
             
-        case let .video(_, url):
+        case let .video(_, url, _):
             guard let player = players[safe: backwardBuffer],
                 player.currentItem == nil else { break }
             

@@ -24,8 +24,8 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     /// - Parameters:
     ///   - type: The presentation style to use (tap-through or vertical feed).
     ///   - controller: The playlist controller that supplies items and state.
-    ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and
-    ///     images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
+    ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
+    ///   - appliesMediaSelectionCriteriaAutomatically: Indicates whether the receiver should apply the current selection criteria automatically to AVPlayerItems.
     public init(
         type: PlaylistType,
         controller: PlaylistController,
@@ -42,10 +42,9 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     /// - Parameters:
     ///   - type: The presentation style to use (tap-through or vertical feed).
     ///   - controller: The playlist controller that supplies items and state.
-    ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and
-    ///     images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
-    ///   - overlayForItemAtIndex: A builder that returns an overlay for a given
-    ///     playlist index. Return `nil` to omit an overlay for the item.
+    ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
+    ///   - appliesMediaSelectionCriteriaAutomatically: Indicates whether the receiver should apply the current selection criteria automatically to AVPlayerItems.
+    ///   - overlayForItemAtIndex: A builder that returns an overlay for a given playlist index. Return `nil` to omit an overlay for the item.
     public init(
         type: PlaylistType,
         controller: PlaylistController,

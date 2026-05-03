@@ -69,6 +69,6 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     }
     
     public func updateUIView(_ uiView: UIPlaylistView, context: Context) {
-
+        uiView.gravity = gravity
     }
 }

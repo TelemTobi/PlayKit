@@ -145,20 +145,23 @@ import Testing
     }
 
     @Test func rangedItemsReflectBufferWindow() {
+        let one = PlaylistItem.custom(duration: 1)
+        let two = PlaylistItem.custom(duration: 2)
+        let three = PlaylistItem.custom(duration: 3)
         let controller = PlaylistController(
-            items: [.custom(duration: 1), .custom(duration: 2), .custom(duration: 3)],
+            items: [one, two, three],
             initialIndex: 1,
+            isFocused: false,
             backwardBuffer: 1,
-            forwardBuffer: 1,
-            isFocused: false
+            forwardBuffer: 1
         )
 
         let ranged = controller.rangedItems
         #expect(ranged.count == 3)
-        #expect(ranged[0] == .custom(duration: 1))
-        #expect(ranged[1] == .custom(duration: 2))
-        #expect(ranged[2] == .custom(duration: 3))
-        #expect(controller.currentItem == .custom(duration: 2))
+        #expect(ranged[0] == one)
+        #expect(ranged[1] == two)
+        #expect(ranged[2] == three)
+        #expect(controller.currentItem == two)
     }
 }
 

@@ -23,6 +23,7 @@ public final class UIPlaylistView: UIView {
     private var playerTimeSubscriptions: Set<AnyCancellable> = []
     private var reachedEndSubscriptions: Set<AnyCancellable> = []
     private var bitrateSubscription: AnyCancellable?
+    private var qualityPolicySubscription: AnyCancellable?
     private var itemsSubscription: AnyCancellable?
     private var isPlayingSubscription: AnyCancellable?
     private var isFocusedSubscription: AnyCancellable?
@@ -104,15 +105,17 @@ public final class UIPlaylistView: UIView {
     private func initiatePlayers() {
         subviews.forEach { $0.removeFromSuperview() }
         players.removeAll()
-        
+
         for player in controller?.players ?? [] {
             let playerView = UIPlayerView(player: player)
             playerView.setGravity(gravity)
+            playerView.qualityPolicy = controller?.qualityPolicy ?? .highestQuality
             players.append(playerView)
         }
-        
+
         prepareUserInterface()
         registerPlayerSubscriptions(for: players)
+        subscribeToQualityPolicy()
     }
     
     private func prepareUserInterface() {
@@ -283,6 +286,17 @@ public final class UIPlaylistView: UIView {
             }
     }
     
+    private func subscribeToQualityPolicy() {
+        qualityPolicySubscription?.cancel()
+
+        qualityPolicySubscription = controller?.$qualityPolicy
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newPolicy in
+                self?.players.forEach { $0.qualityPolicy = newPolicy }
+            }
+    }
+
     private func subscribeToBuiltInCaptions() {
         mediaSelectionSubscription?.cancel()
         

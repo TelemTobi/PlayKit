@@ -17,10 +17,12 @@ final class UIPlayerView: UIView {
     private var player: AVPlayer!
     private let errorDuration: TimeInterval = 5
     internal var rate: Float = 1
-    
+    internal var qualityPolicy: PlaybackQualityPolicy = .highestQuality
+
     private(set) var item: PlaylistItem?
     private(set) var status = CurrentValueSubject<PlaylistItem.Status, Never>(.ready)
     private(set) var reachedEnd = PassthroughSubject<Void, Never>()
+    private var loaderDelegate: HLSManifestRewriter?
 
     private(set) var durationInSeconds: TimeInterval = .zero
     private(set) var progressInSeconds = CurrentValueSubject<TimeInterval, Never>(.zero)
@@ -77,8 +79,9 @@ final class UIPlayerView: UIView {
             loadImage(from: url)
             
         case let .video(_, url, _):
-            let item = AVPlayerItem(url: url)
-            player.replaceCurrentItem(with: item)
+            let (avItem, rewriter) = AVPlayerItem.makeConfigured(url: url, policy: qualityPolicy)
+            self.loaderDelegate = rewriter
+            player.replaceCurrentItem(with: avItem)
             player.automaticallyWaitsToMinimizeStalling = true
 
             registerStatusSubscription()
@@ -156,6 +159,7 @@ final class UIPlayerView: UIView {
         item = nil
         player.cancelPendingPrerolls()
         player.replaceCurrentItem(with: nil)
+        loaderDelegate = nil
         readyObserver = nil
         statusSubscription?.cancel()
         imageView.image = nil

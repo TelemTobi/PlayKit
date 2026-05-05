@@ -72,7 +72,21 @@ public final class PlaylistController: ObservableObject, Identifiable {
     @Published public var showsCaptions: Bool = false
 
     public var shouldPlayOnFocus: Bool = true
-    
+
+    /// The quality policy applied to every `AVPlayerItem` created by this
+    /// controller. Updating this value re-applies the bitrate / resolution
+    /// caps to the currently playing item; manifest-rewriting and first-variant
+    /// preferences only take effect on the next item that gets prepared.
+    @Published public var qualityPolicy: PlaybackQualityPolicy {
+        didSet {
+            guard qualityPolicy != oldValue else { return }
+            for player in players {
+                guard let item = player.currentItem else { continue }
+                AVPlayerItem.apply(policy: qualityPolicy, to: item)
+            }
+        }
+    }
+
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()
     internal let backwardBuffer: Int
     internal let forwardBuffer: Int
@@ -102,6 +116,10 @@ public final class PlaylistController: ObservableObject, Identifiable {
     ///     index.
     ///   - isFocused: Whether the playlist starts focused. Focus determines
     ///     whether playback should commence automatically.
+    ///   - qualityPolicy: How HLS variants and bitrate caps should be selected
+    ///     for new items. Defaults to ``PlaybackQualityPolicy/highestQuality``,
+    ///     which prefers the highest available variant on startup regardless
+    ///     of how the source orders its master playlist.
     public init(
         id: AnyHashable = UUID().uuidString,
         items: [PlaylistItem] = [],
@@ -109,7 +127,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
         isFocused: Bool = false,
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
-        shouldPlayOnFocus: Bool = true
+        shouldPlayOnFocus: Bool = true,
+        qualityPolicy: PlaybackQualityPolicy = .highestQuality
     ) {
         self.id = id
         self.items = items
@@ -117,6 +136,7 @@ public final class PlaylistController: ObservableObject, Identifiable {
         self.backwardBuffer = backwardBuffer
         self.forwardBuffer = forwardBuffer
         self.shouldPlayOnFocus = shouldPlayOnFocus
+        self.qualityPolicy = qualityPolicy
         
         if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex
@@ -230,17 +250,39 @@ extension PlaylistController {
             Task {
                 await ImageProvider.shared.loadImage(from: url)
             }
-            
+
         case let .video(_, url, _):
             guard let player = players[safe: backwardBuffer],
                 player.currentItem == nil else { break }
-            
-            let item = AVPlayerItem(url: url)
+
+            let (item, loaderDelegate) = AVPlayerItem.makeConfigured(url: url, policy: qualityPolicy)
+            // AVURLAsset holds its resource-loader delegate weakly; associate
+            // it with the player item so the rewriter outlives the warm-up
+            // window before a UIPlayerView takes over the player.
+            ResourceLoaderDelegateBox.attach(loaderDelegate, to: item)
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
-            
+
         case .custom, .error, .none:
             break
         }
+    }
+}
+
+/// Carrier that keeps an `AVAssetResourceLoaderDelegate` alive for as long as
+/// the `AVPlayerItem` it serves is alive.
+internal final class ResourceLoaderDelegateBox {
+    let delegate: AVAssetResourceLoaderDelegate
+
+    private init(delegate: AVAssetResourceLoaderDelegate) {
+        self.delegate = delegate
+    }
+
+    nonisolated(unsafe) private static var key: UInt8 = 0
+
+    static func attach(_ delegate: AVAssetResourceLoaderDelegate?, to item: AVPlayerItem) {
+        guard let delegate else { return }
+        let box = ResourceLoaderDelegateBox(delegate: delegate)
+        objc_setAssociatedObject(item, &key, box, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 }

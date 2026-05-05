@@ -17,9 +17,15 @@ extension AVPlayerItem {
     /// player item — `AVURLAsset` holds its resource-loader delegate weakly.
     /// The caller stores it alongside the player item (e.g. on the player
     /// view) and discards it when the item is replaced.
+    ///
+    /// - Parameter defaultMaximumPixelSize: A view-derived ceiling, in pixels,
+    ///   used as the fallback for `preferredMaximumResolution` when the policy
+    ///   itself doesn't specify one. Lets PlayKit avoid downloading variants
+    ///   bigger than the player will ever render.
     nonisolated static func makeConfigured(
         url: URL,
-        policy: PlaybackQualityPolicy
+        policy: PlaybackQualityPolicy,
+        defaultMaximumPixelSize: CGSize? = nil
     ) -> (item: AVPlayerItem, loaderDelegate: HLSManifestRewriter?) {
         let isHLS = isLikelyHLS(url: url)
         let shouldRewriteManifest = isHLS && policy.reordersMultivariantPlaylist
@@ -37,14 +43,23 @@ extension AVPlayerItem {
         }
 
         let item = AVPlayerItem(asset: asset)
-        apply(policy: policy, to: item)
+        apply(policy: policy, to: item, defaultMaximumPixelSize: defaultMaximumPixelSize)
         return (item, rewriter)
     }
 
     /// Applies the mutable parts of a quality policy to an existing player
     /// item. Called both when the item is first created and when the host
     /// updates the policy mid-playback.
-    nonisolated static func apply(policy: PlaybackQualityPolicy, to item: AVPlayerItem) {
+    ///
+    /// - Parameter defaultMaximumPixelSize: A view-derived ceiling, in pixels.
+    ///   Used as the fallback resolution cap when ``PlaybackQualityPolicy/preferredMaximumResolution``
+    ///   is `nil`. Pass the player view's `bounds.size × displayScale` so AVPlayer
+    ///   skips variants larger than the surface that will render them.
+    nonisolated static func apply(
+        policy: PlaybackQualityPolicy,
+        to item: AVPlayerItem,
+        defaultMaximumPixelSize: CGSize? = nil
+    ) {
         if policy.forcesFirstEligibleVariant {
             item.startsOnFirstEligibleVariant = true
         }
@@ -55,10 +70,17 @@ extension AVPlayerItem {
                 policy.preferredPeakBitRateForExpensiveNetworks ?? 0
         }
 
-        item.preferredMaximumResolution = policy.preferredMaximumResolution ?? .zero
+        let resolution = policy.preferredMaximumResolution
+            ?? defaultMaximumPixelSize
+            ?? .zero
+        item.preferredMaximumResolution = resolution
+
         if #available(iOS 15.0, tvOS 15.0, macOS 12.0, *) {
-            item.preferredMaximumResolutionForExpensiveNetworks =
-                policy.preferredMaximumResolutionForExpensiveNetworks ?? .zero
+            let expensiveResolution = policy.preferredMaximumResolutionForExpensiveNetworks
+                ?? policy.preferredMaximumResolution
+                ?? defaultMaximumPixelSize
+                ?? .zero
+            item.preferredMaximumResolutionForExpensiveNetworks = expensiveResolution
         }
     }
 

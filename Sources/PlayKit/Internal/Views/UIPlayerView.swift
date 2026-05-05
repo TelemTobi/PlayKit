@@ -23,6 +23,7 @@ final class UIPlayerView: UIView {
     private(set) var status = CurrentValueSubject<PlaylistItem.Status, Never>(.ready)
     private(set) var reachedEnd = PassthroughSubject<Void, Never>()
     private var loaderDelegate: HLSManifestRewriter?
+    private var lastAppliedPixelSize: CGSize = .zero
 
     private(set) var durationInSeconds: TimeInterval = .zero
     private(set) var progressInSeconds = CurrentValueSubject<TimeInterval, Never>(.zero)
@@ -79,8 +80,13 @@ final class UIPlayerView: UIView {
             loadImage(from: url)
             
         case let .video(_, url, _):
-            let (avItem, rewriter) = AVPlayerItem.makeConfigured(url: url, policy: qualityPolicy)
+            let (avItem, rewriter) = AVPlayerItem.makeConfigured(
+                url: url,
+                policy: qualityPolicy,
+                defaultMaximumPixelSize: currentVideoPixelSize()
+            )
             self.loaderDelegate = rewriter
+            self.lastAppliedPixelSize = currentVideoPixelSize()
             player.replaceCurrentItem(with: avItem)
             player.automaticallyWaitsToMinimizeStalling = true
 
@@ -160,6 +166,7 @@ final class UIPlayerView: UIView {
         player.cancelPendingPrerolls()
         player.replaceCurrentItem(with: nil)
         loaderDelegate = nil
+        lastAppliedPixelSize = .zero
         readyObserver = nil
         statusSubscription?.cancel()
         imageView.image = nil
@@ -167,6 +174,28 @@ final class UIPlayerView: UIView {
         durationInSeconds = .zero
         timerSubscription?.cancel()
         hasCaptions = false
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        let newSize = currentVideoPixelSize()
+        guard newSize != lastAppliedPixelSize,
+              newSize != .zero,
+              let avItem = player.currentItem
+        else { return }
+
+        lastAppliedPixelSize = newSize
+        AVPlayerItem.apply(policy: qualityPolicy, to: avItem, defaultMaximumPixelSize: newSize)
+    }
+
+    private func currentVideoPixelSize() -> CGSize {
+        let pointSize = bounds.size
+        guard pointSize.width > 0, pointSize.height > 0 else { return .zero }
+
+        let displayScale = traitCollection.displayScale
+        let scale = displayScale > 0 ? displayScale : (window?.screen.scale ?? 2)
+        return CGSize(width: pointSize.width * scale, height: pointSize.height * scale)
     }
     
     func setGravity(_ gravity: AVLayerVideoGravity) {

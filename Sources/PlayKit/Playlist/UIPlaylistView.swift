@@ -104,13 +104,14 @@ public final class UIPlaylistView: UIView {
     private func initiatePlayers() {
         subviews.forEach { $0.removeFromSuperview() }
         players.removeAll()
-        
+
+        let policy = controller?.qualityPolicy ?? .automatic
         for player in controller?.players ?? [] {
-            let playerView = UIPlayerView(player: player)
+            let playerView = UIPlayerView(player: player, qualityPolicy: policy)
             playerView.setGravity(gravity)
             players.append(playerView)
         }
-        
+
         prepareUserInterface()
         registerPlayerSubscriptions(for: players)
     }

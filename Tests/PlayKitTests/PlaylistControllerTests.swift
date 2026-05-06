@@ -148,9 +148,9 @@ import Testing
         let controller = PlaylistController(
             items: [.custom(duration: 1), .custom(duration: 2), .custom(duration: 3)],
             initialIndex: 1,
+            isFocused: false,
             backwardBuffer: 1,
-            forwardBuffer: 1,
-            isFocused: false
+            forwardBuffer: 1
         )
 
         let ranged = controller.rangedItems

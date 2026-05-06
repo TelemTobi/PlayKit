@@ -11,13 +11,14 @@ import AVKit
 
 final class UIPlayerView: UIView {
     override static var layerClass: AnyClass { AVPlayerLayer.self }
-    
+
     private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
-    
+
     private var player: AVPlayer!
     private let errorDuration: TimeInterval = 5
     internal var rate: Float = 1
-    
+    internal var qualityPolicy: HLSQualityPolicy = .automatic
+
     private(set) var item: PlaylistItem?
     private(set) var status = CurrentValueSubject<PlaylistItem.Status, Never>(.ready)
     private(set) var reachedEnd = PassthroughSubject<Void, Never>()
@@ -42,11 +43,12 @@ final class UIPlayerView: UIView {
         return imageView
     }()
     
-    convenience init(player: AVPlayer) {
+    convenience init(player: AVPlayer, qualityPolicy: HLSQualityPolicy = .automatic) {
         self.init(frame: .zero)
         self.player = player
         self.player.appliesMediaSelectionCriteriaAutomatically = false
-        
+        self.qualityPolicy = qualityPolicy
+
         playerLayer.player = player
         playerLayer.backgroundColor = UIColor.clear.cgColor
         
@@ -77,7 +79,11 @@ final class UIPlayerView: UIView {
             loadImage(from: url)
             
         case let .video(_, url, _):
-            let item = AVPlayerItem(url: url)
+            let item = HLSAssetFactory.makePlayerItem(
+                url: url,
+                policy: qualityPolicy,
+                viewPixelSize: currentRenderPixelSize()
+            )
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
 
@@ -197,6 +203,18 @@ final class UIPlayerView: UIView {
         player.rate = rate
     }
     
+    /// The render surface's size in pixels, used to cap HLS variant
+    /// resolution. Falls back to the screen size when the view hasn't been
+    /// laid out yet.
+    private func currentRenderPixelSize() -> CGSize {
+        let scale = window?.screen.scale ?? UIScreen.main.scale
+        if bounds.width > 0, bounds.height > 0 {
+            return CGSize(width: bounds.width * scale, height: bounds.height * scale)
+        }
+        let screenBounds = window?.screen.bounds ?? UIScreen.main.bounds
+        return CGSize(width: screenBounds.width * scale, height: screenBounds.height * scale)
+    }
+
     func setShowsBuiltInClosedCaptions(_ newValue: Bool) {
         guard let playerItem = player.currentItem,
               let legibleGroup = playerItem.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),

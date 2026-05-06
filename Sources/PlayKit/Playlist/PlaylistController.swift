@@ -87,7 +87,10 @@ public final class PlaylistController: ObservableObject, Identifiable {
     
     internal let players: [AVPlayer]
     internal var setIndexWithAnimation: Bool = false
-    
+
+    /// The HLS variant-selection policy applied to ``PlaylistItem/video`` items.
+    public let qualityPolicy: HLSQualityPolicy
+
     /// Creates a new controller.
     ///
     /// - Parameters:
@@ -102,6 +105,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
     ///     index.
     ///   - isFocused: Whether the playlist starts focused. Focus determines
     ///     whether playback should commence automatically.
+    ///   - qualityPolicy: The HLS quality-selection policy. Defaults to
+    ///     ``HLSQualityPolicy/automatic``.
     public init(
         id: AnyHashable = UUID().uuidString,
         items: [PlaylistItem] = [],
@@ -109,7 +114,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
         isFocused: Bool = false,
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
-        shouldPlayOnFocus: Bool = true
+        shouldPlayOnFocus: Bool = true,
+        qualityPolicy: HLSQualityPolicy = .automatic
     ) {
         self.id = id
         self.items = items
@@ -117,13 +123,14 @@ public final class PlaylistController: ObservableObject, Identifiable {
         self.backwardBuffer = backwardBuffer
         self.forwardBuffer = forwardBuffer
         self.shouldPlayOnFocus = shouldPlayOnFocus
-        
+        self.qualityPolicy = qualityPolicy
+
         if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex
         } else {
             self.currentIndex = .zero
         }
-        
+
         players = (0..<backwardBuffer + forwardBuffer + 1).map { _ in AVPlayer() }
         prepareInitialItemIfNeeded()
     }
@@ -234,8 +241,12 @@ extension PlaylistController {
         case let .video(_, url, _):
             guard let player = players[safe: backwardBuffer],
                 player.currentItem == nil else { break }
-            
-            let item = AVPlayerItem(url: url)
+
+            let item = HLSAssetFactory.makePlayerItem(
+                url: url,
+                policy: qualityPolicy,
+                viewPixelSize: nil
+            )
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true
             

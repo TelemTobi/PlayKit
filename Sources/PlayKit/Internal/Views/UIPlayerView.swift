@@ -203,16 +203,24 @@ final class UIPlayerView: UIView {
         player.rate = rate
     }
     
-    /// The render surface's size in pixels, used to cap HLS variant
-    /// resolution. Falls back to the screen size when the view hasn't been
-    /// laid out yet.
+    /// The render surface's pixel size used to cap HLS variant resolution.
+    ///
+    /// Returns a *square* whose side is the long edge of the view (or the
+    /// screen, when the view isn't laid out yet) times the screen scale.
+    /// `AVPlayerItem.preferredMaximumResolution` is a per-axis constraint,
+    /// so a literal portrait-shaped cap rejects every landscape variant —
+    /// using the long edge on both axes accepts variants whose long edge
+    /// fits while still excluding genuinely oversized ones.
     private func currentRenderPixelSize() -> CGSize {
         let scale = window?.screen.scale ?? UIScreen.main.scale
+        let pointSize: CGSize
         if bounds.width > 0, bounds.height > 0 {
-            return CGSize(width: bounds.width * scale, height: bounds.height * scale)
+            pointSize = bounds.size
+        } else {
+            pointSize = window?.screen.bounds.size ?? UIScreen.main.bounds.size
         }
-        let screenBounds = window?.screen.bounds ?? UIScreen.main.bounds
-        return CGSize(width: screenBounds.width * scale, height: screenBounds.height * scale)
+        let longEdge = max(pointSize.width, pointSize.height) * scale
+        return CGSize(width: longEdge, height: longEdge)
     }
 
     func setShowsBuiltInClosedCaptions(_ newValue: Bool) {

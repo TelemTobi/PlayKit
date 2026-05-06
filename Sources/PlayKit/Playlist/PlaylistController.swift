@@ -242,10 +242,14 @@ extension PlaylistController {
             guard let player = players[safe: backwardBuffer],
                 player.currentItem == nil else { break }
 
+            // Use a screen-size square as the pre-warm cap so the variant
+            // chosen here matches what `UIPlayerView` will choose once the
+            // view is laid out — avoids replacing the pre-warmed item with
+            // a different variant the moment the view appears.
             let item = HLSAssetFactory.makePlayerItem(
                 url: url,
                 policy: qualityPolicy,
-                viewPixelSize: nil
+                viewPixelSize: HLSAssetFactory.estimatedScreenPixelSize()
             )
             player.replaceCurrentItem(with: item)
             player.automaticallyWaitsToMinimizeStalling = true

@@ -8,6 +8,9 @@
 import Foundation
 import AVFoundation
 import ObjectiveC
+#if canImport(UIKit) && !os(watchOS)
+import UIKit
+#endif
 
 /// Builds an `AVPlayerItem` for a video URL, applying an
 /// ``HLSQualityPolicy`` when the URL refers to an HLS playlist.
@@ -64,6 +67,20 @@ internal enum HLSAssetFactory {
         )
 
         return item
+    }
+
+    /// A square cap derived from the device screen's long edge in pixels,
+    /// suitable to use when no view-bounds-derived size is available yet
+    /// (e.g. during ``PlaylistController`` pre-warm before any view exists).
+    /// Returns `nil` on platforms where the screen isn't reachable.
+    static func estimatedScreenPixelSize() -> CGSize? {
+        #if canImport(UIKit) && !os(watchOS)
+        let bounds = UIScreen.main.nativeBounds
+        let longEdge = max(bounds.width, bounds.height)
+        return CGSize(width: longEdge, height: longEdge)
+        #else
+        return nil
+        #endif
     }
 
     private static let loaderQueue = DispatchQueue(label: "PlayKit.HLSAssetLoader", qos: .userInitiated)

@@ -237,24 +237,14 @@ extension PlaylistController {
             Task {
                 await ImageProvider.shared.loadImage(from: url)
             }
-            
-        case let .video(_, url, _):
-            guard let player = players[safe: backwardBuffer],
-                player.currentItem == nil else { break }
 
-            // Use a screen-size square as the pre-warm cap so the variant
-            // chosen here matches what `UIPlayerView` will choose once the
-            // view is laid out — avoids replacing the pre-warmed item with
-            // a different variant the moment the view appears.
-            let item = HLSAssetFactory.makePlayerItem(
-                url: url,
-                policy: qualityPolicy,
-                viewPixelSize: HLSAssetFactory.estimatedScreenPixelSize()
-            )
-            player.replaceCurrentItem(with: item)
-            player.automaticallyWaitsToMinimizeStalling = true
-            
-        case .custom, .error, .none:
+        case .video, .custom, .error, .none:
+            // Videos are prepared by `UIPlayerView` once the view is in the
+            // hierarchy. Eagerly creating an `AVPlayerItem` here would race
+            // the view-level prepare and double up master-manifest /
+            // variant-playlist / segment fetches — devastating on cellular,
+            // where the duplicate traffic competes for a single LTE/5G pipe
+            // and stalls the visible item's buffer fill.
             break
         }
     }

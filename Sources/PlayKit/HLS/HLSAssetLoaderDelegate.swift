@@ -20,7 +20,14 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
     private let configuration: HLSQualityPolicy.Configuration
     private let networkClass: () -> HLSNetworkClass
     private let viewPixelHeight: () -> Int?
-    private let session: URLSession
+
+    /// Tracks the in-flight `URLSessionDataTask` for each loading request so
+    /// the task can be cancelled when AVPlayer cancels the request — for
+    /// example when the player item is replaced. Without this the cancelled
+    /// fetch keeps running in the background and eats cellular bandwidth.
+    /// Keys are held weakly so dropped requests don't pin tasks alive.
+    private let pendingTasks = NSMapTable<AVAssetResourceLoadingRequest, URLSessionDataTask>.weakToStrongObjects()
+    private let pendingTasksLock = NSLock()
 
     init(
         configuration: HLSQualityPolicy.Configuration,
@@ -30,9 +37,6 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
         self.configuration = configuration
         self.viewPixelHeight = viewPixelHeight
         self.networkClass = networkClass
-        let sessionConfig = URLSessionConfiguration.ephemeral
-        sessionConfig.waitsForConnectivity = false
-        self.session = URLSession(configuration: sessionConfig)
     }
 
     func resourceLoader(
@@ -49,7 +53,10 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
         let configuration = self.configuration
         let viewPixelHeight = self.viewPixelHeight()
 
-        let task = session.dataTask(with: originalURL) { data, response, error in
+        let task = Self.sharedSession.dataTask(with: originalURL) { [weak self, weak loadingRequest] data, response, error in
+            guard let loadingRequest, !loadingRequest.isCancelled else { return }
+            self?.removePendingTask(for: loadingRequest)
+
             guard let data, error == nil else {
                 loadingRequest.finishLoading(with: error ?? URLError(.badServerResponse))
                 return
@@ -78,8 +85,33 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
             let outputData = Data(rewritten.utf8)
             Self.respond(to: loadingRequest, with: outputData)
         }
+
+        setPendingTask(task, for: loadingRequest)
         task.resume()
         return true
+    }
+
+    func resourceLoader(
+        _ resourceLoader: AVAssetResourceLoader,
+        didCancel loadingRequest: AVAssetResourceLoadingRequest
+    ) {
+        pendingTasksLock.lock()
+        let task = pendingTasks.object(forKey: loadingRequest)
+        pendingTasks.removeObject(forKey: loadingRequest)
+        pendingTasksLock.unlock()
+        task?.cancel()
+    }
+
+    private func setPendingTask(_ task: URLSessionDataTask, for request: AVAssetResourceLoadingRequest) {
+        pendingTasksLock.lock()
+        pendingTasks.setObject(task, forKey: request)
+        pendingTasksLock.unlock()
+    }
+
+    private func removePendingTask(for request: AVAssetResourceLoadingRequest) {
+        pendingTasksLock.lock()
+        pendingTasks.removeObject(forKey: request)
+        pendingTasksLock.unlock()
     }
 
     private static func respond(to loadingRequest: AVAssetResourceLoadingRequest, with data: Data) {
@@ -97,6 +129,19 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
         components.scheme = "https"
         return components.url
     }
+
+    /// Single process-wide URLSession used by all loader instances.
+    ///
+    /// Sharing avoids the per-item cost of building an ephemeral session
+    /// (separate connection pool, no TLS session reuse, no shared cookies),
+    /// which makes a measurable difference on cellular where every fresh
+    /// handshake costs hundreds of milliseconds. Default configuration is
+    /// used so cookies, credentials, and the system URL cache flow through
+    /// the same channels as the rest of the app.
+    static let sharedSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        return URLSession(configuration: config)
+    }()
 }
 
 private extension HLSQualityPolicy.Configuration {

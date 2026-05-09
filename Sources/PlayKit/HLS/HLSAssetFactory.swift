@@ -14,45 +14,97 @@ import UIKit
 
 /// Builds an `AVPlayerItem` for a video URL, applying an
 /// ``HLSQualityPolicy`` when the URL refers to an HLS playlist.
+///
+/// Network-class branching: Wi-Fi / wired Ethernet runs the master
+/// playlist through the rewrite pipeline so we can promote a higher
+/// initial variant. Cellular, constrained, and unknown networks bypass
+/// the rewriter entirely — a plain `AVPlayerItem(url:)` is returned with
+/// `startsOnFirstEligibleVariant=false`, letting AVPlayer's
+/// bandwidth-aware ABR pick the initial variant. Past versions of this
+/// branch tried to bias cellular's initial pick upward via the same
+/// rewrite path, but it caused AVPlayer to commit to a variant the link
+/// couldn't sustain (slow load + locked-low ABR). The native pipeline is
+/// already tuned for cellular; the simplest correct thing is to stay out
+/// of its way.
 internal enum HLSAssetFactory {
     /// Returns an `AVPlayerItem` configured for the given URL.
     ///
     /// - Parameters:
     ///   - url: The source URL (may be HLS or progressive).
     ///   - policy: The quality policy to apply.
-    ///   - viewPixelSize: The render surface's size in pixels at the time of
-    ///     preparation. Used to set `preferredMaximumResolution` so AVPlayer
-    ///     doesn't decode higher than the surface it draws into. Pass `nil`
-    ///     when the view size isn't yet known; the cap is skipped for this
-    ///     item.
+    ///   - viewPixelSize: The render surface's size in pixels at the
+    ///     time of preparation. Used to set `preferredMaximumResolution`
+    ///     so AVPlayer doesn't decode higher than the surface it draws
+    ///     into. Pass `nil` when the view size isn't yet known.
+    ///   - networkClass: Override for the current network class, used
+    ///     by tests to force either branch deterministically. Production
+    ///     callers should accept the default.
     static func makePlayerItem(
         url: URL,
         policy: HLSQualityPolicy,
-        viewPixelSize: CGSize?
+        viewPixelSize: CGSize?,
+        networkClass: () -> HLSNetworkClass = { HLSNetworkClassifier.shared.current }
     ) -> AVPlayerItem {
-        guard let configuration = policy.configuration,
-              isHLS(url),
-              let wrappedURL = wrap(url) else {
+        guard let configuration = policy.configuration, isHLS(url) else {
             return AVPlayerItem(url: url)
         }
 
+        switch networkClass() {
+        case .unconstrained:
+            return makeRewrittenItem(
+                url: url,
+                configuration: configuration,
+                viewPixelSize: viewPixelSize
+            )
+        case .fastCellular, .slowCellular, .constrained, .unknown:
+            return makePassthroughItem(
+                url: url,
+                configuration: configuration,
+                viewPixelSize: viewPixelSize
+            )
+        }
+    }
+
+    /// A square cap derived from the device screen's long edge in
+    /// pixels, suitable to use when no view-bounds-derived size is
+    /// available yet. Returns `nil` on platforms where the screen isn't
+    /// reachable.
+    static func estimatedScreenPixelSize() -> CGSize? {
+        #if canImport(UIKit) && !os(watchOS)
+        let bounds = UIScreen.main.nativeBounds
+        let longEdge = max(bounds.width, bounds.height)
+        return CGSize(width: longEdge, height: longEdge)
+        #else
+        return nil
+        #endif
+    }
+
+    // MARK: - Private
+
+    /// Wi-Fi / wired path: route the master through the rewriter so we
+    /// can promote a higher-than-default initial variant.
+    private static func makeRewrittenItem(
+        url: URL,
+        configuration: HLSQualityPolicy.Configuration,
+        viewPixelSize: CGSize?
+    ) -> AVPlayerItem {
+        guard let wrappedURL = wrap(url) else {
+            return makePassthroughItem(
+                url: url,
+                configuration: configuration,
+                viewPixelSize: viewPixelSize
+            )
+        }
+
         let asset = AVURLAsset(url: wrappedURL)
-        let delegate = HLSAssetLoaderDelegate(configuration: configuration)
+        let delegate = HLSAssetLoaderDelegate(targetHeight: configuration.wifiMinimumHeight)
         asset.resourceLoader.setDelegate(delegate, queue: loaderQueue)
 
         let item = AVPlayerItem(asset: asset)
+        // We control the initial pick via manifest order; AVPlayer should
+        // honor it rather than running its own bandwidth heuristic.
         item.startsOnFirstEligibleVariant = true
-        if let size = viewPixelSize,
-           configuration.capsResolutionToViewSize,
-           size.width > 0, size.height > 0 {
-            // `preferredMaximumResolution` is documented as a per-axis
-            // variant-eligibility constraint that AVPlayer's ABR still
-            // respects across upgrades — exactly what we want for a
-            // render-size cap. We don't replicate this in the manifest:
-            // dropping high variants there would also remove them from
-            // ABR's downgrade path on weak networks.
-            item.preferredMaximumResolution = size
-        }
+        applyResolutionCap(item: item, configuration: configuration, viewPixelSize: viewPixelSize)
 
         // Tie the delegate's lifetime to the player item — when AVPlayer
         // releases the item, the delegate goes with it.
@@ -66,26 +118,39 @@ internal enum HLSAssetFactory {
         return item
     }
 
-    /// A square cap derived from the device screen's long edge in pixels,
-    /// suitable to use when no view-bounds-derived size is available yet
-    /// (e.g. during ``PlaylistController`` pre-warm before any view exists).
-    /// Returns `nil` on platforms where the screen isn't reachable.
-    static func estimatedScreenPixelSize() -> CGSize? {
-        #if canImport(UIKit) && !os(watchOS)
-        let bounds = UIScreen.main.nativeBounds
-        let longEdge = max(bounds.width, bounds.height)
-        return CGSize(width: longEdge, height: longEdge)
-        #else
-        return nil
-        #endif
+    /// Cellular / constrained / unknown path: hand AVPlayer the original
+    /// HTTPS URL untouched. AVPlayer's native HLS pipeline picks the
+    /// initial variant from its own bandwidth measurements and adapts
+    /// from there. `preferredMaximumResolution` still applies so we
+    /// don't decode larger than the render surface.
+    private static func makePassthroughItem(
+        url: URL,
+        configuration: HLSQualityPolicy.Configuration,
+        viewPixelSize: CGSize?
+    ) -> AVPlayerItem {
+        let item = AVPlayerItem(url: url)
+        item.startsOnFirstEligibleVariant = false
+        applyResolutionCap(item: item, configuration: configuration, viewPixelSize: viewPixelSize)
+        return item
+    }
+
+    private static func applyResolutionCap(
+        item: AVPlayerItem,
+        configuration: HLSQualityPolicy.Configuration,
+        viewPixelSize: CGSize?
+    ) {
+        guard configuration.capsResolutionToViewSize,
+              let size = viewPixelSize,
+              size.width > 0, size.height > 0 else { return }
+        item.preferredMaximumResolution = size
     }
 
     private static let loaderQueue = DispatchQueue(label: "PlayKit.HLSAssetLoader", qos: .userInitiated)
 
-    /// Stable key for the player-item-associated loader delegate. A single
-    /// byte is allocated for the lifetime of the process and used purely for
-    /// its address. `nonisolated(unsafe)` is sound because the key is
-    /// initialized once and never mutated.
+    /// Stable key for the player-item-associated loader delegate. A
+    /// single byte is allocated for the lifetime of the process and used
+    /// purely for its address. `nonisolated(unsafe)` is sound because
+    /// the key is initialized once and never mutated.
     private nonisolated(unsafe) static let loaderDelegateAssociationKey: UnsafeRawPointer = {
         let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
         buffer.initialize(to: 0)

@@ -2,10 +2,14 @@ import Foundation
 import Testing
 @testable import PlayKit
 
+/// Unit tests on the rewriter. The rewriter is the Wi-Fi-only branch of
+/// `HLSAssetFactory` — cellular paths bypass it entirely — so these tests
+/// exercise the wifi target heights the production policy ships with
+/// (720 by default) plus a couple of edge-case targets to keep the
+/// rewriter robust against future configuration knobs.
 @Suite struct HLSManifestRewriterTests {
-    /// Twitter portrait ladder — heights {404, 608, 912}. The shapes that
-    /// ship in production look like this; the older test fixture used a
-    /// landscape ladder which doesn't exercise the bug we hit on Twitter.
+    /// Twitter portrait ladder shape — heights {404, 608, 912}. Every
+    /// production sample we've seen has a similar shape.
     private static let twitterPortraitMaster = """
     #EXTM3U
     #EXT-X-VERSION:6
@@ -42,7 +46,7 @@ import Testing
 
     // MARK: - Promotion + retention
 
-    @Test func wifiTargetPromotesSmallestVariantAtOrAboveFloor() throws {
+    @Test func promotesSmallestVariantAtOrAbove720Target() throws {
         let rewritten = try #require(
             HLSManifestRewriter.rewrite(
                 manifest: Self.twitterLandscapeMaster,
@@ -53,47 +57,15 @@ import Testing
         let variantURIs = streamInfURIs(in: rewritten)
         // All four source variants must remain — ABR needs every rung.
         #expect(variantURIs.count == 4)
-        // Lowest variant >= 720 is 720 itself; it's promoted to position 0.
+        // Lowest variant >= 720 is 720 itself; promoted to position 0.
         #expect(variantURIs.first?.contains("1280x720") == true)
     }
 
-    @Test func cellularTargetPromotesSmallestVariantAtOrAboveFloor() throws {
-        let rewritten = try #require(
-            HLSManifestRewriter.rewrite(
-                manifest: Self.twitterLandscapeMaster,
-                baseURL: baseURL,
-                targetHeight: 480
-            )
-        )
-        let variantURIs = streamInfURIs(in: rewritten)
-        #expect(variantURIs.count == 4)
-        // 480 floor: lowest >= 480 is the 720 variant — 360 is below floor.
-        #expect(variantURIs.first?.contains("1280x720") == true)
-    }
-
-    /// The original cellular bug. With heights {404, 608, 912} and a 480
-    /// floor, the *only* variant the player can fall back to under stress
-    /// must still be the 404 line — dropping it caused stalls. This test
-    /// asserts every source variant survives the rewrite.
-    @Test func twitterPortraitCellularKeepsLowestForABR() throws {
-        let rewritten = try #require(
-            HLSManifestRewriter.rewrite(
-                manifest: Self.twitterPortraitMaster,
-                baseURL: baseURL,
-                targetHeight: 480
-            )
-        )
-        let variantURIs = streamInfURIs(in: rewritten)
-        #expect(variantURIs.count == 3)
-        // Promoted: lowest variant whose height >= 480 → 608.
-        #expect(variantURIs.first?.contains("480x608") == true)
-        // Lowest rung still in the manifest → ABR can downgrade.
-        #expect(rewritten.contains("320x404"))
-        // Highest rung still in the manifest → ABR can upgrade on 5G.
-        #expect(rewritten.contains("720x912"))
-    }
-
-    @Test func twitterPortraitWifiKeepsAllVariants() throws {
+    /// Twitter portrait masters at the production wifi target (720): the
+    /// lowest variant clearing the floor is 912p, and every rung below
+    /// must still be present in the manifest so ABR can downgrade if the
+    /// link weakens mid-playback.
+    @Test func twitterPortraitWifiTargetKeepsAllVariants() throws {
         let rewritten = try #require(
             HLSManifestRewriter.rewrite(
                 manifest: Self.twitterPortraitMaster,
@@ -103,13 +75,12 @@ import Testing
         )
         let variantURIs = streamInfURIs(in: rewritten)
         #expect(variantURIs.count == 3)
-        // Lowest rung whose height >= 720 → 912.
         #expect(variantURIs.first?.contains("720x912") == true)
         #expect(rewritten.contains("320x404"))
         #expect(rewritten.contains("480x608"))
     }
 
-    @Test func promotesHighestVariantWhenAllBelowFloor() throws {
+    @Test func promotesHighestVariantWhenAllBelowTarget() throws {
         // Source where all variants are below 720p — the rewriter falls
         // back to the highest variant the source provides instead of
         // refusing to promote.
@@ -137,8 +108,6 @@ import Testing
     }
 
     @Test func nilTargetPreservesOriginalOrderAndAllVariants() throws {
-        // Used by the constrained / unknown network classes — the rewriter
-        // must absolutize URIs but otherwise leave order alone.
         let rewritten = try #require(
             HLSManifestRewriter.rewrite(
                 manifest: Self.twitterPortraitMaster,

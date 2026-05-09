@@ -8,95 +8,177 @@ import AVFoundation
 /// rewrite, AVPlayer parsing the rewritten manifest, and the AVPlayerItem
 /// reaching `.readyToPlay`.
 ///
-/// Unit tests on the rewriter alone cannot catch contract violations
-/// against AVPlayer (e.g. capturing `loadingRequest` weakly so
-/// `finishLoading` is never called), and they can't catch the production
-/// bug where dropping variants below the floor stripped ABR's downshift
-/// path on Twitter's portrait ladders. These integration tests require
-/// network access.
+/// Plus deterministic checks that the factory routes Wi-Fi traffic
+/// through the rewriter and routes cellular / constrained / unknown
+/// traffic straight through to AVPlayer's native pipeline. The factory
+/// branch is the single most consequential decision in this module —
+/// an inversion here is what produced the "stuck at 360p on cellular"
+/// failure mode — so it gets its own pinned tests.
 @Suite struct HLSAssetFactoryIntegrationTests {
     /// Apple's reference HLS multivariant stream — long-lived and
     /// publicly documented; used in many WWDC samples.
     private let appleBipBop = URL(string: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8")!
 
-    /// Real Twitter HLS samples the team ships in production. Twitter
-    /// rotates URLs over time, so a 4xx here is a signal to refresh the
-    /// fixture rather than evidence of a regression.
+    /// Real Twitter HLS samples shipped in production. Twitter rotates
+    /// URLs over time, so a 4xx here is a signal to refresh the fixture
+    /// rather than evidence of a regression.
     private let twitterSamples: [URL] = [
         URL(string: "https://video.twimg.com/amplify_video/2052598697494822912/pl/RlXt3Dc9rvJiaHsP.m3u8?tag=14")!,
         URL(string: "https://video.twimg.com/amplify_video/2052600700958380037/pl/8sv_B4I6g7I6ay4r.m3u8")!,
         URL(string: "https://video.twimg.com/amplify_video/2052602909603348486/pl/c4vgX97muaW78MBl.m3u8")!,
         URL(string: "https://video.twimg.com/amplify_video/2052603114822283268/pl/t73rEuDhtldPiGA6.m3u8")!,
         URL(string: "https://video.twimg.com/amplify_video/2052608087077359618/pl/ywHR2xUIRY2K-lFQ.m3u8")!,
-        URL(string: "https://video.twimg.com/amplify_video/2052632039837331458/pl/R9WFh3euPZxCOjeQ.m3u8")!
+        URL(string: "https://video.twimg.com/amplify_video/2052891591317110789/pl/kVvWMesbVImv0hUH.m3u8")!
     ]
 
-    // MARK: - End-to-end reachability
+    // MARK: - Branching invariants (no network)
 
-    @Test func automaticPolicyReachesReadyToPlay() async throws {
+    /// Wi-Fi / wired networks must run through the rewriter — that's how
+    /// we promote a higher initial variant on Wi-Fi. The wrapped URL
+    /// identifies the rewrite path: it carries the `pkhls` scheme so
+    /// AVPlayer dispatches the master fetch to our resource loader.
+    @Test func unconstrainedNetworkUsesRewritePath() {
         let item = HLSAssetFactory.makePlayerItem(
-            url: appleBipBop,
+            url: twitterSamples[0],
             policy: .automatic,
-            viewPixelSize: CGSize(width: 2400, height: 2400)
+            viewPixelSize: CGSize(width: 1290, height: 2796),
+            networkClass: { .unconstrained }
         )
-        let player = AVPlayer(playerItem: item)
-        defer { player.replaceCurrentItem(with: nil) }
-        try await awaitReadyToPlay(item, timeout: 30)
+        let asset = item.asset as? AVURLAsset
+        #expect(asset?.url.scheme == HLSAssetLoaderDelegate.scheme)
+        #expect(item.startsOnFirstEligibleVariant == true)
     }
 
-    @Test func unrestrictedPolicyReachesReadyToPlay() async throws {
-        // Verifies the non-rewritten path (no resource-loader interception)
-        // still works — guards against regressions on plain pass-through.
+    /// Cellular must NOT run through the rewriter. AVPlayer's native ABR
+    /// is bandwidth-aware and tuned for cellular; intervening produced
+    /// the "slow load → locked at low quality" failure this branch was
+    /// originally trying to fix. The plain HTTPS scheme on the asset's
+    /// URL is the contract that says "no resource-loader interception."
+    @Test func fastCellularUsesPassthroughPath() {
         let item = HLSAssetFactory.makePlayerItem(
-            url: appleBipBop,
-            policy: .unrestricted,
-            viewPixelSize: nil
+            url: twitterSamples[0],
+            policy: .automatic,
+            viewPixelSize: CGSize(width: 1290, height: 2796),
+            networkClass: { .fastCellular }
         )
-        let player = AVPlayer(playerItem: item)
-        defer { player.replaceCurrentItem(with: nil) }
-        try await awaitReadyToPlay(item, timeout: 30)
+        let asset = item.asset as? AVURLAsset
+        #expect(asset?.url.scheme == "https")
+        #expect(item.startsOnFirstEligibleVariant == false)
     }
 
-    /// Sweep the production fleet under `.automatic`. The classifier picks
-    /// whatever interface the test host is on; the assertion is just that
-    /// AVPlayer reaches readyToPlay through the full pipeline. This is the
-    /// regression sentinel for the "loadingRequest captured weakly" class
-    /// of bug — `finishLoading` either fires or AVPlayer hangs.
-    @Test func sweepProductionSamplesUnderAutomaticPolicy() async throws {
-        for url in twitterSamples {
+    @Test func slowCellularUsesPassthroughPath() {
+        let item = HLSAssetFactory.makePlayerItem(
+            url: twitterSamples[0],
+            policy: .automatic,
+            viewPixelSize: nil,
+            networkClass: { .slowCellular }
+        )
+        let asset = item.asset as? AVURLAsset
+        #expect(asset?.url.scheme == "https")
+        #expect(item.startsOnFirstEligibleVariant == false)
+    }
+
+    /// Low Data Mode and unknown classifications fall onto the
+    /// passthrough path too — the rewriter is reserved for networks
+    /// where we know we can spend bandwidth on a higher initial variant.
+    @Test func constrainedAndUnknownUsePassthroughPath() {
+        for networkClass in [HLSNetworkClass.constrained, .unknown] {
             let item = HLSAssetFactory.makePlayerItem(
-                url: url,
+                url: twitterSamples[0],
                 policy: .automatic,
-                viewPixelSize: CGSize(width: 2400, height: 2400)
+                viewPixelSize: nil,
+                networkClass: { networkClass }
             )
-            let player = AVPlayer(playerItem: item)
-            do {
-                try await awaitReadyToPlay(item, timeout: 30)
-            } catch {
-                Issue.record("\(url.lastPathComponent) failed under .automatic: \(error)")
-            }
-            player.replaceCurrentItem(with: nil)
+            let asset = item.asset as? AVURLAsset
+            #expect(asset?.url.scheme == "https", "expected passthrough for \(networkClass)")
+            #expect(item.startsOnFirstEligibleVariant == false)
         }
     }
 
-    // MARK: - ABR invariants on real masters
+    /// `.unrestricted` opts the entire asset out of PlayKit's HLS
+    /// handling on every network class — useful when the caller wants
+    /// AVPlayer's defaults end to end.
+    @Test func unrestrictedPolicyAlwaysUsesPassthroughPath() {
+        for networkClass in [HLSNetworkClass.unconstrained, .fastCellular, .slowCellular] {
+            let item = HLSAssetFactory.makePlayerItem(
+                url: twitterSamples[0],
+                policy: .unrestricted,
+                viewPixelSize: nil,
+                networkClass: { networkClass }
+            )
+            let asset = item.asset as? AVURLAsset
+            #expect(asset?.url.scheme == "https", "expected passthrough for \(networkClass) under .unrestricted")
+        }
+    }
 
-    /// The bug: dropping variants below the policy floor left Twitter's
-    /// `{404, 608, 912}` portrait ladders with one variant on Wi-Fi (only
-    /// 912 cleared the 720 floor) and two on cellular (only 608 + 912
-    /// cleared the 480 floor). ABR couldn't downshift on weak networks
-    /// → stalls. This test fetches the live masters and asserts the
-    /// rewriter — across every target height the production policy uses,
-    /// including the `unconstrained` 720 case — preserves the source
-    /// variant count.
-    @Test func rewriterPreservesVariantCountAcrossAllTargets() async throws {
+    @Test func nonHLSURLsAreNeverRewritten() {
+        let mp4 = URL(string: "https://example.com/clip.mp4")!
+        let item = HLSAssetFactory.makePlayerItem(
+            url: mp4,
+            policy: .automatic,
+            viewPixelSize: nil,
+            networkClass: { .unconstrained }
+        )
+        let asset = item.asset as? AVURLAsset
+        #expect(asset?.url.scheme == "https")
+    }
+
+    // MARK: - End-to-end reachability (live network)
+
+    @Test func unconstrainedReachesReadyToPlayThroughRewriter() async throws {
+        let item = HLSAssetFactory.makePlayerItem(
+            url: appleBipBop,
+            policy: .automatic,
+            viewPixelSize: CGSize(width: 2400, height: 2400),
+            networkClass: { .unconstrained }
+        )
+        let player = AVPlayer(playerItem: item)
+        defer { player.replaceCurrentItem(with: nil) }
+        try await awaitReadyToPlay(item, timeout: 30)
+    }
+
+    @Test func cellularReachesReadyToPlayThroughPassthrough() async throws {
+        let item = HLSAssetFactory.makePlayerItem(
+            url: appleBipBop,
+            policy: .automatic,
+            viewPixelSize: CGSize(width: 2400, height: 2400),
+            networkClass: { .fastCellular }
+        )
+        let player = AVPlayer(playerItem: item)
+        defer { player.replaceCurrentItem(with: nil) }
+        try await awaitReadyToPlay(item, timeout: 30)
+    }
+
+    /// Sweep the production Twitter fleet through both branches. The
+    /// live-CDN assertion is just `.readyToPlay`; deeper invariants
+    /// (variant counts, ordering) belong in the rewriter unit tests.
+    @Test func sweepProductionSamplesAcrossBothBranches() async throws {
+        for url in twitterSamples {
+            for networkClass in [HLSNetworkClass.unconstrained, .fastCellular] {
+                let item = HLSAssetFactory.makePlayerItem(
+                    url: url,
+                    policy: .automatic,
+                    viewPixelSize: CGSize(width: 2400, height: 2400),
+                    networkClass: { networkClass }
+                )
+                let player = AVPlayer(playerItem: item)
+                do {
+                    try await awaitReadyToPlay(item, timeout: 30)
+                } catch {
+                    Issue.record("\(url.lastPathComponent) failed under \(networkClass): \(error)")
+                }
+                player.replaceCurrentItem(with: nil)
+            }
+        }
+    }
+
+    /// Fetches each live master and asserts the rewriter — at the
+    /// production wifi target — preserves every variant in the source.
+    /// The original cellular bug was *dropping* low rungs, which is what
+    /// this invariant exists to catch in the Wi-Fi branch as well.
+    @Test func wifiRewriterPreservesEveryVariant() async throws {
         let baseConfig = HLSQualityPolicy.Configuration()
-        let targets: [(label: String, value: Int?)] = [
-            ("wifi/wired", baseConfig.wifiMinimumHeight),
-            ("fast cellular", baseConfig.fastCellularMinimumHeight),
-            ("slow cellular", baseConfig.slowCellularMinimumHeight),
-            ("constrained/unknown", nil)
-        ]
+        let target = baseConfig.wifiMinimumHeight
 
         for url in twitterSamples {
             let manifest: String
@@ -111,19 +193,15 @@ import AVFoundation
                 Issue.record("\(url.lastPathComponent) is not a multivariant master.")
                 continue
             }
-
-            for target in targets {
-                let rewritten = HLSManifestRewriter.rewrite(
-                    manifest: manifest,
-                    baseURL: url,
-                    targetHeight: target.value
-                ) ?? manifest
-                let rewrittenCount = countStreamInf(in: rewritten)
-                #expect(
-                    rewrittenCount == sourceCount,
-                    "\(url.lastPathComponent) under \(target.label) target: rewriter emitted \(rewrittenCount)/\(sourceCount) variants — ABR cannot adapt with rungs missing"
-                )
-            }
+            let rewritten = HLSManifestRewriter.rewrite(
+                manifest: manifest,
+                baseURL: url,
+                targetHeight: target
+            ) ?? manifest
+            #expect(
+                countStreamInf(in: rewritten) == sourceCount,
+                "\(url.lastPathComponent) wifi rewrite emitted \(countStreamInf(in: rewritten))/\(sourceCount) variants — ABR cannot adapt with rungs missing"
+            )
         }
     }
 
@@ -144,9 +222,6 @@ import AVFoundation
             .count
     }
 
-    /// Polls `AVPlayerItem.status` until it reaches `.readyToPlay`, throws
-    /// on `.failed`, throws on timeout. Polling at 100 ms is plenty given
-    /// readyToPlay latency for a public stream is hundreds of ms at most.
     private func awaitReadyToPlay(_ item: AVPlayerItem, timeout: TimeInterval) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

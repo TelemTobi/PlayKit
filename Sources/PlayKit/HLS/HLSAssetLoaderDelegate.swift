@@ -11,29 +11,31 @@ import AVFoundation
 /// Intercepts AVPlayer's request for a multivariant HLS playlist so the
 /// payload can be reordered before AVPlayer parses it.
 ///
-/// Only the master playlist URL is wrapped with the custom scheme; rewritten
-/// playlists contain absolute `https` URIs for variant playlists and audio
-/// renditions, which AVPlayer fetches directly and bypass this delegate.
+/// The factory only attaches this delegate on Wi-Fi / wired networks —
+/// cellular and constrained paths skip the rewrite entirely so AVPlayer's
+/// native, bandwidth-aware ABR runs unimpeded. As a result this class
+/// doesn't need to consult the network class itself.
+///
+/// Only the master playlist URL is wrapped with the custom scheme;
+/// rewritten playlists contain absolute `https` URIs for variant
+/// playlists and audio renditions, which AVPlayer fetches directly and
+/// bypass this delegate.
 internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDelegate {
     static let scheme = "pkhls"
 
-    private let configuration: HLSQualityPolicy.Configuration
-    private let networkClass: () -> HLSNetworkClass
+    private let targetHeight: Int?
 
-    /// Tracks the in-flight `URLSessionDataTask` for each loading request so
-    /// the task can be cancelled when AVPlayer cancels the request — for
-    /// example when the player item is replaced. Without this the cancelled
-    /// fetch keeps running in the background and eats cellular bandwidth.
-    /// Keys are held weakly so dropped requests don't pin tasks alive.
+    /// Tracks the in-flight `URLSessionDataTask` for each loading request
+    /// so the task can be cancelled when AVPlayer cancels the request —
+    /// for example when the player item is replaced. Without this the
+    /// cancelled fetch keeps running in the background and eats
+    /// bandwidth. Keys are held weakly so dropped requests don't pin
+    /// tasks alive.
     private let pendingTasks = NSMapTable<AVAssetResourceLoadingRequest, URLSessionDataTask>.weakToStrongObjects()
     private let pendingTasksLock = NSLock()
 
-    init(
-        configuration: HLSQualityPolicy.Configuration,
-        networkClass: @escaping () -> HLSNetworkClass = { HLSNetworkClassifier.shared.current }
-    ) {
-        self.configuration = configuration
-        self.networkClass = networkClass
+    init(targetHeight: Int?) {
+        self.targetHeight = targetHeight
     }
 
     func resourceLoader(
@@ -46,14 +48,13 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
             return false
         }
 
-        let networkClass = self.networkClass()
-        let configuration = self.configuration
-        let targetHeight = configuration.targetHeight(for: networkClass)
+        let targetHeight = self.targetHeight
 
-        // `loadingRequest` MUST be captured strongly. Nothing else holds it
-        // across this async hop — capturing it weakly causes the closure to
-        // see `nil` by the time the response arrives, so `finishLoading`
-        // never fires and AVPlayer waits forever before failing the item.
+        // `loadingRequest` MUST be captured strongly. Nothing else holds
+        // it across this async hop — capturing it weakly causes the
+        // closure to see `nil` by the time the response arrives, so
+        // `finishLoading` never fires and AVPlayer waits forever before
+        // failing the item.
         let task = Self.sharedSession.dataTask(with: originalURL) { [weak self] data, response, error in
             self?.removePendingTask(for: loadingRequest)
 
@@ -125,29 +126,13 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
     }
 
     /// Single process-wide URLSession used by all loader instances.
-    ///
     /// Sharing avoids the per-item cost of building an ephemeral session
-    /// (separate connection pool, no TLS session reuse, no shared cookies),
-    /// which makes a measurable difference on cellular where every fresh
-    /// handshake costs hundreds of milliseconds. Default configuration is
-    /// used so cookies, credentials, and the system URL cache flow through
-    /// the same channels as the rest of the app.
+    /// (separate connection pool, no TLS session reuse, no shared
+    /// cookies). Default configuration so cookies, credentials, and the
+    /// system URL cache flow through the same channels as the rest of
+    /// the app.
     static let sharedSession: URLSession = {
         let config = URLSessionConfiguration.default
         return URLSession(configuration: config)
     }()
-}
-
-private extension HLSQualityPolicy.Configuration {
-    /// The pixel-height we want AVPlayer to start on for a given network
-    /// class. The rewriter promotes the smallest variant whose height is
-    /// `>= targetHeight` to the first position; ABR is unaffected.
-    func targetHeight(for networkClass: HLSNetworkClass) -> Int? {
-        switch networkClass {
-        case .unconstrained: return wifiMinimumHeight
-        case .fastCellular: return fastCellularMinimumHeight
-        case .slowCellular: return slowCellularMinimumHeight
-        case .constrained, .unknown: return nil
-        }
-    }
 }

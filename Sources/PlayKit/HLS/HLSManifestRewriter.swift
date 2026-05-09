@@ -7,38 +7,42 @@
 
 import Foundation
 
-/// Filters and reorders variants in an HLS multivariant playlist so the
-/// initial variant chosen by AVPlayer is biased toward a desired floor and
-/// ceiling.
+/// Reorders variants in an HLS multivariant playlist so AVPlayer's
+/// `startsOnFirstEligibleVariant=true` picks a desired starting variant
+/// rather than the lowest-bitrate one.
 ///
-/// AVPlayer respects the order of variants in the playlist when
-/// `AVPlayerItem.startsOnFirstEligibleVariant == true`. Reordering the
-/// rewritten playlist therefore controls the cold-start choice without
-/// changing the set of variants AVPlayer can adapt to.
+/// Crucially, no variants are removed. AVPlayer's adaptive bitrate (ABR)
+/// engine relies on the full ladder being present so it can downgrade when
+/// the network deteriorates — dropping the low rungs from the manifest
+/// causes hard stalls on weak cellular because ABR has nowhere to fall
+/// back to. Resolution caps for the render surface are enforced separately
+/// via `AVPlayerItem.preferredMaximumResolution`, which is documented as
+/// a variant-eligibility constraint that still permits ABR to revisit
+/// higher variants when bandwidth allows.
 internal struct HLSManifestRewriter {
-    enum Ordering {
-        /// Sort kept variants from the highest height to the lowest.
-        case highestFirst
-        /// Sort kept variants from the lowest height to the highest.
-        case lowestFirst
-    }
-
     /// Rewrites a multivariant playlist by:
     ///   1. expanding all relative URIs (variants and EXT-X-MEDIA renditions)
     ///      to absolute URLs against `baseURL`,
-    ///   2. dropping variants outside `[minimumHeight, maximumHeight]` while
-    ///      always retaining at least one variant, and
-    ///   3. ordering kept variants per `ordering`.
+    ///   2. promoting one variant to the first position so AVPlayer's
+    ///      "first eligible variant" pick lands on it, and
+    ///   3. ordering the remainder ascending by height — purely for stable
+    ///      output; AVPlayer's ABR considers all variants regardless of
+    ///      tail order.
     ///
-    /// Returns `nil` when the input doesn't appear to be a multivariant
-    /// playlist (no `EXT-X-STREAM-INF` lines), in which case the caller
-    /// should return the original bytes unchanged.
+    /// The promoted variant is the smallest-height variant whose height is
+    /// `>= targetHeight`. If no variant clears the bar (e.g. a low-ladder
+    /// portrait source while the policy targets 720p), the highest-height
+    /// variant is promoted instead so playback at least starts at the best
+    /// quality the source offers.
+    ///
+    /// When `targetHeight` is `nil` no promotion happens — variants are
+    /// returned in their source order, only with absolute URIs. Returns
+    /// `nil` for media playlists (no `EXT-X-STREAM-INF` lines), in which
+    /// case the caller should hand the original bytes back unchanged.
     static func rewrite(
         manifest: String,
         baseURL: URL,
-        minimumHeight: Int?,
-        maximumHeight: Int?,
-        ordering: Ordering
+        targetHeight: Int?
     ) -> String? {
         guard manifest.contains("#EXT-X-STREAM-INF") else { return nil }
 
@@ -60,9 +64,8 @@ internal struct HLSManifestRewriter {
                     continue
                 }
                 let absolute = URL(string: trimmed, relativeTo: baseURL)?.absoluteString ?? trimmed
-                let height = parseHeight(from: attrs)
                 variants.append(VariantBlock(
-                    height: height,
+                    height: parseHeight(from: attrs),
                     attributesLine: attrs,
                     absoluteURI: absolute
                 ))
@@ -78,36 +81,22 @@ internal struct HLSManifestRewriter {
 
         guard !variants.isEmpty else { return nil }
 
-        // Ceiling: keep variants <= max; if none qualify, keep the smallest so
-        // playback still works on a tiny render surface or aggressive cap.
-        var kept = variants
-        if let maximumHeight {
-            let underCap = kept.filter { ($0.height ?? Int.max) <= maximumHeight }
-            if !underCap.isEmpty {
-                kept = underCap
-            } else if let smallest = kept.min(by: heightAscending) {
-                kept = [smallest]
-            }
-        }
-
-        // Floor: keep variants >= min; if none qualify, keep the highest so
-        // playback still works for sources whose ladder tops out below floor.
-        if let minimumHeight {
-            let overFloor = kept.filter { ($0.height ?? 0) >= minimumHeight }
-            if !overFloor.isEmpty {
-                kept = overFloor
-            } else if let highest = kept.max(by: heightAscending) {
-                kept = [highest]
-            }
-        }
-
-        switch ordering {
-        case .highestFirst: kept.sort { heightAscending($1, $0) }
-        case .lowestFirst: kept.sort(by: heightAscending)
+        let ordered: [VariantBlock]
+        if let targetHeight {
+            let ascending = variants.sorted(by: heightAscending)
+            // Smallest variant that meets the floor; if none, the highest
+            // the source offers.
+            let promotedIndex = ascending.firstIndex(where: { ($0.height ?? 0) >= targetHeight })
+                ?? (ascending.count - 1)
+            var rest = ascending
+            let promoted = rest.remove(at: promotedIndex)
+            ordered = [promoted] + rest
+        } else {
+            ordered = variants
         }
 
         var output = preamble
-        for variant in kept {
+        for variant in ordered {
             output.append(variant.attributesLine)
             output.append(variant.absoluteURI)
         }

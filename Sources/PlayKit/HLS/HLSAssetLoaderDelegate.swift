@@ -9,7 +9,7 @@ import Foundation
 import AVFoundation
 
 /// Intercepts AVPlayer's request for a multivariant HLS playlist so the
-/// payload can be filtered and reordered before AVPlayer parses it.
+/// payload can be reordered before AVPlayer parses it.
 ///
 /// Only the master playlist URL is wrapped with the custom scheme; rewritten
 /// playlists contain absolute `https` URIs for variant playlists and audio
@@ -19,7 +19,6 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
 
     private let configuration: HLSQualityPolicy.Configuration
     private let networkClass: () -> HLSNetworkClass
-    private let viewPixelHeight: () -> Int?
 
     /// Tracks the in-flight `URLSessionDataTask` for each loading request so
     /// the task can be cancelled when AVPlayer cancels the request — for
@@ -31,11 +30,9 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
 
     init(
         configuration: HLSQualityPolicy.Configuration,
-        viewPixelHeight: @escaping () -> Int?,
         networkClass: @escaping () -> HLSNetworkClass = { HLSNetworkClassifier.shared.current }
     ) {
         self.configuration = configuration
-        self.viewPixelHeight = viewPixelHeight
         self.networkClass = networkClass
     }
 
@@ -51,7 +48,7 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
 
         let networkClass = self.networkClass()
         let configuration = self.configuration
-        let viewPixelHeight = self.viewPixelHeight()
+        let targetHeight = configuration.targetHeight(for: networkClass)
 
         // `loadingRequest` MUST be captured strongly. Nothing else holds it
         // across this async hop — capturing it weakly causes the closure to
@@ -73,18 +70,10 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
             }
 
             let baseURL = (response as? HTTPURLResponse)?.url ?? originalURL
-            let minimumHeight = configuration.minimumHeight(for: networkClass)
-            let ordering: HLSManifestRewriter.Ordering = (networkClass == .unconstrained)
-                ? .highestFirst
-                : .lowestFirst
-            let maximumHeight = configuration.capsResolutionToViewSize ? viewPixelHeight : nil
-
             let rewritten = HLSManifestRewriter.rewrite(
                 manifest: manifestText,
                 baseURL: baseURL,
-                minimumHeight: minimumHeight,
-                maximumHeight: maximumHeight,
-                ordering: ordering
+                targetHeight: targetHeight
             ) ?? manifestText
 
             let outputData = Data(rewritten.utf8)
@@ -150,7 +139,10 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
 }
 
 private extension HLSQualityPolicy.Configuration {
-    func minimumHeight(for networkClass: HLSNetworkClass) -> Int? {
+    /// The pixel-height we want AVPlayer to start on for a given network
+    /// class. The rewriter promotes the smallest variant whose height is
+    /// `>= targetHeight` to the first position; ABR is unaffected.
+    func targetHeight(for networkClass: HLSNetworkClass) -> Int? {
         switch networkClass {
         case .unconstrained: return wifiMinimumHeight
         case .fastCellular: return fastCellularMinimumHeight

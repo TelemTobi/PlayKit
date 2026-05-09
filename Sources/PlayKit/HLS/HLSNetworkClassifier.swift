@@ -42,12 +42,22 @@ internal final class HLSNetworkClassifier: @unchecked Sendable {
         monitor.start(queue: queue)
     }
 
+    /// The current network class.
+    ///
+    /// `NWPathMonitor.pathUpdateHandler` runs on its dispatch queue, so on
+    /// app launch the first video can race ahead of the first callback.
+    /// Falling back to `monitor.currentPath` in that window avoids
+    /// classifying as `.unknown` and degrading initial playback to
+    /// AVPlayer's "start on the lowest variant" default — Apple documents
+    /// `currentPath` as queryable at any time, returning the most recent
+    /// path the monitor observed.
     var current: HLSNetworkClass {
         os_unfair_lock_lock(&lock)
-        let path = cachedPath
+        let cached = cachedPath
         os_unfair_lock_unlock(&lock)
+        let path = cached ?? monitor.currentPath
 
-        guard let path, path.status == .satisfied else { return .unknown }
+        guard path.status == .satisfied else { return .unknown }
         if path.isConstrained { return .constrained }
 
         if path.usesInterfaceType(.wifi) || path.usesInterfaceType(.wiredEthernet) {

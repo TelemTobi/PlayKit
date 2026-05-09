@@ -21,8 +21,10 @@ internal enum HLSAssetFactory {
     ///   - url: The source URL (may be HLS or progressive).
     ///   - policy: The quality policy to apply.
     ///   - viewPixelSize: The render surface's size in pixels at the time of
-    ///     preparation, used to cap variant resolution. Pass `nil` if the
-    ///     view size is not yet known; the cap will be skipped for this item.
+    ///     preparation. Used to set `preferredMaximumResolution` so AVPlayer
+    ///     doesn't decode higher than the surface it draws into. Pass `nil`
+    ///     when the view size isn't yet known; the cap is skipped for this
+    ///     item.
     static func makePlayerItem(
         url: URL,
         policy: HLSQualityPolicy,
@@ -35,18 +37,7 @@ internal enum HLSAssetFactory {
         }
 
         let asset = AVURLAsset(url: wrappedURL)
-
-        let viewPixelHeight: Int?
-        if configuration.capsResolutionToViewSize, let size = viewPixelSize, size.height > 0 {
-            viewPixelHeight = Int(size.height.rounded())
-        } else {
-            viewPixelHeight = nil
-        }
-
-        let delegate = HLSAssetLoaderDelegate(
-            configuration: configuration,
-            viewPixelHeight: { viewPixelHeight }
-        )
+        let delegate = HLSAssetLoaderDelegate(configuration: configuration)
         asset.resourceLoader.setDelegate(delegate, queue: loaderQueue)
 
         let item = AVPlayerItem(asset: asset)
@@ -54,6 +45,12 @@ internal enum HLSAssetFactory {
         if let size = viewPixelSize,
            configuration.capsResolutionToViewSize,
            size.width > 0, size.height > 0 {
+            // `preferredMaximumResolution` is documented as a per-axis
+            // variant-eligibility constraint that AVPlayer's ABR still
+            // respects across upgrades — exactly what we want for a
+            // render-size cap. We don't replicate this in the manifest:
+            // dropping high variants there would also remove them from
+            // ABR's downgrade path on weak networks.
             item.preferredMaximumResolution = size
         }
 

@@ -53,9 +53,14 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
         let configuration = self.configuration
         let viewPixelHeight = self.viewPixelHeight()
 
-        let task = Self.sharedSession.dataTask(with: originalURL) { [weak self, weak loadingRequest] data, response, error in
-            guard let loadingRequest, !loadingRequest.isCancelled else { return }
+        // `loadingRequest` MUST be captured strongly. Nothing else holds it
+        // across this async hop — capturing it weakly causes the closure to
+        // see `nil` by the time the response arrives, so `finishLoading`
+        // never fires and AVPlayer waits forever before failing the item.
+        let task = Self.sharedSession.dataTask(with: originalURL) { [weak self] data, response, error in
             self?.removePendingTask(for: loadingRequest)
+
+            guard !loadingRequest.isCancelled else { return }
 
             guard let data, error == nil else {
                 loadingRequest.finishLoading(with: error ?? URLError(.badServerResponse))

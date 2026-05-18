@@ -8,9 +8,6 @@
 import Foundation
 import AVFoundation
 import ObjectiveC
-#if canImport(UIKit) && !os(watchOS)
-import UIKit
-#endif
 
 /// Builds an `AVPlayerItem` for a video URL, applying an
 /// ``HLSQualityPolicy`` when the URL refers to an HLS playlist.
@@ -63,20 +60,6 @@ internal enum HLSAssetFactory {
                 viewPixelSize: viewPixelSize
             )
         }
-    }
-
-    /// A square cap derived from the device screen's long edge in
-    /// pixels, suitable to use when no view-bounds-derived size is
-    /// available yet. Returns `nil` on platforms where the screen isn't
-    /// reachable.
-    static func estimatedScreenPixelSize() -> CGSize? {
-        #if canImport(UIKit) && !os(watchOS)
-        let bounds = UIScreen.main.nativeBounds
-        let longEdge = max(bounds.width, bounds.height)
-        return CGSize(width: longEdge, height: longEdge)
-        #else
-        return nil
-        #endif
     }
 
     // MARK: - Private

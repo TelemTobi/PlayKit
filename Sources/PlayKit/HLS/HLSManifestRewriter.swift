@@ -72,7 +72,15 @@ internal struct HLSManifestRewriter {
                 pendingStreamInf = nil
                 continue
             }
-            if line.hasPrefix("#EXT-X-MEDIA") {
+            // Every other `#EXT-X-` tag with a `URI="..."` attribute must
+            // be expanded to absolute. We serve the master from a
+            // `pkhls://` URL, so any relative reference AVPlayer parses
+            // (I-FRAME-STREAM-INF for trick play, SESSION-KEY, SESSION-DATA,
+            // etc.) resolves against `pkhls://` and gets routed back through
+            // this loader — which only knows how to serve master playlists.
+            // The result is broken trick play / DRM key fetches the first
+            // time someone uses a feature beyond `.readyToPlay`.
+            if line.hasPrefix("#EXT-X-") && line.contains("URI=\"") {
                 preamble.append(rewriteURIAttribute(in: line, baseURL: baseURL))
                 continue
             }

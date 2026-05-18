@@ -145,8 +145,15 @@ import Testing
     }
 
     @Test func rangedItemsReflectBufferWindow() {
+        // Explicit IDs because `.custom(duration:)` defaults to a fresh
+        // UUID each call — comparing two literal `.custom(duration: 1)`
+        // expressions otherwise always fails on the id field.
+        let first = PlaylistItem.custom(id: "first", duration: 1)
+        let second = PlaylistItem.custom(id: "second", duration: 2)
+        let third = PlaylistItem.custom(id: "third", duration: 3)
+
         let controller = PlaylistController(
-            items: [.custom(duration: 1), .custom(duration: 2), .custom(duration: 3)],
+            items: [first, second, third],
             initialIndex: 1,
             isFocused: false,
             backwardBuffer: 1,
@@ -155,10 +162,10 @@ import Testing
 
         let ranged = controller.rangedItems
         #expect(ranged.count == 3)
-        #expect(ranged[0] == .custom(duration: 1))
-        #expect(ranged[1] == .custom(duration: 2))
-        #expect(ranged[2] == .custom(duration: 3))
-        #expect(controller.currentItem == .custom(duration: 2))
+        #expect(ranged[0] == first)
+        #expect(ranged[1] == second)
+        #expect(ranged[2] == third)
+        #expect(controller.currentItem == second)
     }
 }
 

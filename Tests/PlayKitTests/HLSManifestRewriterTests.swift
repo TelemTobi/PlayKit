@@ -139,6 +139,36 @@ import Testing
         #expect(rewritten.contains("https://video.twimg.com/amplify_video/2052598697494822912/pl/avc1/"))
     }
 
+    /// I-FRAME-STREAM-INF lines (used by AVPlayer for trick play / scrub
+    /// preview) carry their URI as an attribute on the line itself. If we
+    /// leave them relative, AVPlayer resolves them against the `pkhls://`
+    /// loader URL and routes the fetch back through `HLSAssetLoaderDelegate`
+    /// — which only knows how to serve the master and breaks everything
+    /// else. Same hazard applies to SESSION-KEY and SESSION-DATA.
+    @Test func expandsRelativeURIsOnIFrameStreamInf() throws {
+        let master = """
+        #EXTM3U
+        #EXT-X-VERSION:6
+        #EXT-X-STREAM-INF:BANDWIDTH=2227464,RESOLUTION=960x540,CODECS="avc1.640020,mp4a.40.2"
+        v5/prog_index.m3u8
+        #EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=186522,RESOLUTION=1920x1080,CODECS="avc1.64002a",URI="v7/iframe_index.m3u8"
+        #EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=98136,RESOLUTION=960x540,CODECS="avc1.640020",URI="v5/iframe_index.m3u8"
+        """
+        let rewritten = try #require(
+            HLSManifestRewriter.rewrite(
+                manifest: master,
+                baseURL: baseURL,
+                targetHeight: nil
+            )
+        )
+        #expect(rewritten.contains("URI=\"https://video.twimg.com/amplify_video/2052598697494822912/pl/v7/iframe_index.m3u8\""))
+        #expect(rewritten.contains("URI=\"https://video.twimg.com/amplify_video/2052598697494822912/pl/v5/iframe_index.m3u8\""))
+        // The relative form must be gone entirely — no straggler that
+        // would resolve against `pkhls://`.
+        #expect(rewritten.contains("URI=\"v7/iframe_index.m3u8\"") == false)
+        #expect(rewritten.contains("URI=\"v5/iframe_index.m3u8\"") == false)
+    }
+
     @Test func returnsNilForNonMultivariantPlaylist() {
         let mediaPlaylist = """
         #EXTM3U

@@ -36,31 +36,3 @@ extension UICollectionViewCell {
     }
 }
 
-extension UICollectionViewLayout {
-    static func verticalFeed(onScroll: @MainActor @escaping (CGPoint) -> Void) -> UICollectionViewCompositionalLayout {
-        let itemSize = NSCollectionLayoutSize(
-            widthDimension: .fractionalWidth(1.0),
-            heightDimension: .fractionalHeight(1.0)
-        )
-        let layoutItem = NSCollectionLayoutItem(layoutSize: itemSize)
-
-        let groupSize = NSCollectionLayoutSize(
-            widthDimension: .fractionalWidth(1.0),
-            heightDimension: .fractionalHeight(1.0)
-        )
-        let layoutGroup = NSCollectionLayoutGroup.vertical(
-            layoutSize: groupSize,
-            subitems: [layoutItem]
-        )
-
-        let layoutSection = NSCollectionLayoutSection(group: layoutGroup)
-        layoutSection.visibleItemsInvalidationHandler = { _, offset, _ in onScroll(offset) }
-        layoutSection.orthogonalScrollingBehavior = .groupPaging
-
-        let config = UICollectionViewCompositionalLayoutConfiguration()
-        config.scrollDirection = .horizontal
-        config.contentInsetsReference = .none
-
-        return UICollectionViewCompositionalLayout(section: layoutSection, configuration: config)
-    }
-}

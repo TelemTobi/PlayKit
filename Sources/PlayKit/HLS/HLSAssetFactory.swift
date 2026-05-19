@@ -12,17 +12,24 @@ import ObjectiveC
 /// Builds an `AVPlayerItem` for a video URL, applying an
 /// ``HLSQualityPolicy`` when the URL refers to an HLS playlist.
 ///
-/// Network-class branching: Wi-Fi / wired Ethernet runs the master
-/// playlist through the rewrite pipeline so we can promote a higher
-/// initial variant. Cellular, constrained, and unknown networks bypass
-/// the rewriter entirely — a plain `AVPlayerItem(url:)` is returned with
-/// `startsOnFirstEligibleVariant=false`, letting AVPlayer's
-/// bandwidth-aware ABR pick the initial variant. Past versions of this
-/// branch tried to bias cellular's initial pick upward via the same
-/// rewrite path, but it caused AVPlayer to commit to a variant the link
-/// couldn't sustain (slow load + locked-low ABR). The native pipeline is
-/// already tuned for cellular; the simplest correct thing is to stay out
-/// of its way.
+/// Network-class branching:
+/// - **Wi-Fi / wired**: rewrite path with the Wi-Fi floor (default
+///   720p). Promotes a high variant to position 0 so AVPlayer's
+///   "first eligible variant" pick lands on it.
+/// - **Cellular**: rewrite path with the cellular floor (default 360p).
+///   Earlier versions of this branch passed cellular through to
+///   AVPlayer's native ABR. The problem: on a 10-second clip, ABR
+///   doesn't have time to ramp from its default lowest-variant cold
+///   start before the video ends — viewers watch the whole thing at the
+///   lowest rung. A 360p floor is comfortably below any modern cellular
+///   envelope (~310 Kbps actual) and since the rewriter no longer
+///   *removes* variants, ABR can still drop further if it really needs
+///   to. Earlier "locked at low quality" failures were at 720p on
+///   borderline cellular; 360p does not reproduce that.
+/// - **Constrained (Low Data Mode) / unknown**: passthrough. Low Data
+///   Mode is the OS-level "save my bytes" signal and we honor it;
+///   unknown means we have no idea what we're on and conservative is
+///   safest.
 internal enum HLSAssetFactory {
     /// Returns an `AVPlayerItem` configured for the given URL.
     ///
@@ -50,10 +57,18 @@ internal enum HLSAssetFactory {
         case .unconstrained:
             return makeRewrittenItem(
                 url: url,
+                targetHeight: configuration.wifiMinimumHeight,
                 configuration: configuration,
                 viewPixelSize: viewPixelSize
             )
-        case .fastCellular, .slowCellular, .constrained, .unknown:
+        case .cellular:
+            return makeRewrittenItem(
+                url: url,
+                targetHeight: configuration.cellularMinimumHeight,
+                configuration: configuration,
+                viewPixelSize: viewPixelSize
+            )
+        case .constrained, .unknown:
             return makePassthroughItem(
                 url: url,
                 configuration: configuration,
@@ -64,14 +79,18 @@ internal enum HLSAssetFactory {
 
     // MARK: - Private
 
-    /// Wi-Fi / wired path: route the master through the rewriter so we
-    /// can promote a higher-than-default initial variant.
+    /// Route the master through the rewriter so we can promote a
+    /// higher-than-default initial variant. If `targetHeight` is `nil`
+    /// the caller has opted out of promotion for this network class —
+    /// fall through to passthrough rather than spend a master fetch on
+    /// nothing.
     private static func makeRewrittenItem(
         url: URL,
+        targetHeight: Int?,
         configuration: HLSQualityPolicy.Configuration,
         viewPixelSize: CGSize?
     ) -> AVPlayerItem {
-        guard let wrappedURL = wrap(url) else {
+        guard let targetHeight, let wrappedURL = wrap(url) else {
             return makePassthroughItem(
                 url: url,
                 configuration: configuration,
@@ -80,7 +99,7 @@ internal enum HLSAssetFactory {
         }
 
         let asset = AVURLAsset(url: wrappedURL)
-        let delegate = HLSAssetLoaderDelegate(targetHeight: configuration.wifiMinimumHeight)
+        let delegate = HLSAssetLoaderDelegate(targetHeight: targetHeight)
         asset.resourceLoader.setDelegate(delegate, queue: loaderQueue)
 
         let item = AVPlayerItem(asset: asset)
@@ -101,11 +120,11 @@ internal enum HLSAssetFactory {
         return item
     }
 
-    /// Cellular / constrained / unknown path: hand AVPlayer the original
-    /// HTTPS URL untouched. AVPlayer's native HLS pipeline picks the
-    /// initial variant from its own bandwidth measurements and adapts
-    /// from there. `preferredMaximumResolution` still applies so we
-    /// don't decode larger than the render surface.
+    /// Constrained / unknown path: hand AVPlayer the original HTTPS URL
+    /// untouched. AVPlayer's native HLS pipeline picks the initial
+    /// variant from its own bandwidth measurements and adapts from
+    /// there. `preferredMaximumResolution` still applies so we don't
+    /// decode larger than the render surface.
     private static func makePassthroughItem(
         url: URL,
         configuration: HLSQualityPolicy.Configuration,

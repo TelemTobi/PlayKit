@@ -7,19 +7,23 @@
 
 import Foundation
 import Network
-#if os(iOS) && !targetEnvironment(macCatalyst)
-import CoreTelephony
-#endif
 
 internal enum HLSNetworkClass: Sendable {
     case unconstrained
-    case fastCellular
-    case slowCellular
+    case cellular
     case constrained
     case unknown
 }
 
 /// Snapshots the device's current network class for HLS variant selection.
+///
+/// We deliberately don't distinguish fast vs slow cellular. Earlier
+/// versions branched on `CTTelephonyNetworkInfo` radio access tech
+/// (LTE/NR → fast, otherwise slow) to decide whether to push a higher
+/// initial variant. In practice the cellular floor we ship (360p,
+/// ~310 Kbps) is below every modern cellular envelope, so the
+/// distinction wasn't load-bearing — and dropping CoreTelephony removes
+/// a framework dependency and a small privacy footprint.
 internal final class HLSNetworkClassifier: @unchecked Sendable {
     static let shared = HLSNetworkClassifier()
 
@@ -27,10 +31,6 @@ internal final class HLSNetworkClassifier: @unchecked Sendable {
     private let queue = DispatchQueue(label: "PlayKit.HLSNetworkClassifier", qos: .utility)
     private var lock = os_unfair_lock_s()
     private var cachedPath: NWPath?
-
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    private let telephony = CTTelephonyNetworkInfo()
-    #endif
 
     private init() {
         monitor.pathUpdateHandler = { [weak self] path in
@@ -64,30 +64,8 @@ internal final class HLSNetworkClassifier: @unchecked Sendable {
             return .unconstrained
         }
         if path.usesInterfaceType(.cellular) {
-            return isFastCellular ? .fastCellular : .slowCellular
+            return .cellular
         }
         return .unknown
     }
-
-    private var isFastCellular: Bool {
-        #if os(iOS) && !targetEnvironment(macCatalyst)
-        guard let radios = telephony.serviceCurrentRadioAccessTechnology?.values, !radios.isEmpty else {
-            return true
-        }
-        return radios.contains(where: Self.isFastRadio)
-        #else
-        return true
-        #endif
-    }
-
-    #if os(iOS) && !targetEnvironment(macCatalyst)
-    private static func isFastRadio(_ tech: String) -> Bool {
-        if tech == CTRadioAccessTechnologyLTE { return true }
-        if #available(iOS 14.1, *) {
-            if tech == CTRadioAccessTechnologyNR { return true }
-            if tech == CTRadioAccessTechnologyNRNSA { return true }
-        }
-        return false
-    }
-    #endif
 }

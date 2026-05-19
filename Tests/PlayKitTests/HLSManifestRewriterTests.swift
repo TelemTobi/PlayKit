@@ -80,6 +80,24 @@ import Testing
         #expect(rewritten.contains("480x608"))
     }
 
+    /// The cellular floor (360p). On Twitter's standard landscape ladder
+    /// the smallest variant clearing 360 is exactly 360, and every rung
+    /// below (270p) must still be present so ABR can drop if the link
+    /// actually struggles.
+    @Test func promotesSmallestVariantAtOrAbove360Target() throws {
+        let rewritten = try #require(
+            HLSManifestRewriter.rewrite(
+                manifest: Self.twitterLandscapeMaster,
+                baseURL: baseURL,
+                targetHeight: 360
+            )
+        )
+        let variantURIs = streamInfURIs(in: rewritten)
+        #expect(variantURIs.count == 4)
+        #expect(variantURIs.first?.contains("640x360") == true)
+        #expect(rewritten.contains("480x270"))
+    }
+
     @Test func promotesHighestVariantWhenAllBelowTarget() throws {
         // Source where all variants are below 720p — the rewriter falls
         // back to the highest variant the source provides instead of

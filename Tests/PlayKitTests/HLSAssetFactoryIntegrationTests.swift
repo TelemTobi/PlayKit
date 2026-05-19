@@ -8,12 +8,13 @@ import AVFoundation
 /// rewrite, AVPlayer parsing the rewritten manifest, and the AVPlayerItem
 /// reaching `.readyToPlay`.
 ///
-/// Plus deterministic checks that the factory routes Wi-Fi traffic
-/// through the rewriter and routes cellular / constrained / unknown
-/// traffic straight through to AVPlayer's native pipeline. The factory
-/// branch is the single most consequential decision in this module —
-/// an inversion here is what produced the "stuck at 360p on cellular"
-/// failure mode — so it gets its own pinned tests.
+/// Plus deterministic checks that the factory routes Wi-Fi and cellular
+/// traffic through the rewriter (with different floors) and routes
+/// Low Data Mode / unknown traffic straight through to AVPlayer's
+/// native pipeline. The factory branch is the single most consequential
+/// decision in this module — an inversion here is what produced the
+/// "stuck at 270p on cellular short clips" failure mode — so it gets
+/// its own pinned tests.
 @Suite struct HLSAssetFactoryIntegrationTests {
     /// Apple's reference HLS multivariant stream — long-lived and
     /// publicly documented; used in many WWDC samples.
@@ -49,29 +50,37 @@ import AVFoundation
         #expect(item.startsOnFirstEligibleVariant == true)
     }
 
-    /// Cellular must NOT run through the rewriter. AVPlayer's native ABR
-    /// is bandwidth-aware and tuned for cellular; intervening produced
-    /// the "slow load → locked at low quality" failure this branch was
-    /// originally trying to fix. The plain HTTPS scheme on the asset's
-    /// URL is the contract that says "no resource-loader interception."
-    @Test func fastCellularUsesPassthroughPath() {
+    /// Cellular runs through the rewriter too, with a lower floor
+    /// (360p by default) so short-form clips don't pin to AVPlayer's
+    /// lowest-variant cold start. The `pkhls` scheme on the asset's URL
+    /// is the contract that says "resource-loader interception engaged."
+    @Test func cellularUsesRewritePath() {
         let item = HLSAssetFactory.makePlayerItem(
             url: twitterSamples[0],
             policy: .automatic,
             viewPixelSize: CGSize(width: 1290, height: 2796),
-            networkClass: { .fastCellular }
+            networkClass: { .cellular }
         )
         let asset = item.asset as? AVURLAsset
-        #expect(asset?.url.scheme == "https")
-        #expect(item.startsOnFirstEligibleVariant == false)
+        #expect(asset?.url.scheme == HLSAssetLoaderDelegate.scheme)
+        #expect(item.startsOnFirstEligibleVariant == true)
     }
 
-    @Test func slowCellularUsesPassthroughPath() {
+    /// Opting out of cellular promotion (`cellularMinimumHeight = nil`)
+    /// falls back to passthrough — the factory shouldn't spend a master
+    /// fetch on a no-op rewrite.
+    @Test func cellularWithNilFloorUsesPassthroughPath() {
+        let policy = HLSQualityPolicy.custom(
+            HLSQualityPolicy.Configuration(
+                wifiMinimumHeight: 720,
+                cellularMinimumHeight: nil
+            )
+        )
         let item = HLSAssetFactory.makePlayerItem(
             url: twitterSamples[0],
-            policy: .automatic,
+            policy: policy,
             viewPixelSize: nil,
-            networkClass: { .slowCellular }
+            networkClass: { .cellular }
         )
         let asset = item.asset as? AVURLAsset
         #expect(asset?.url.scheme == "https")
@@ -79,8 +88,9 @@ import AVFoundation
     }
 
     /// Low Data Mode and unknown classifications fall onto the
-    /// passthrough path too — the rewriter is reserved for networks
-    /// where we know we can spend bandwidth on a higher initial variant.
+    /// passthrough path — Low Data Mode is the OS-level "save my bytes"
+    /// signal we honor, and unknown means we don't have enough info to
+    /// safely intervene.
     @Test func constrainedAndUnknownUsePassthroughPath() {
         for networkClass in [HLSNetworkClass.constrained, .unknown] {
             let item = HLSAssetFactory.makePlayerItem(
@@ -99,7 +109,7 @@ import AVFoundation
     /// handling on every network class — useful when the caller wants
     /// AVPlayer's defaults end to end.
     @Test func unrestrictedPolicyAlwaysUsesPassthroughPath() {
-        for networkClass in [HLSNetworkClass.unconstrained, .fastCellular, .slowCellular] {
+        for networkClass in [HLSNetworkClass.unconstrained, .cellular, .constrained] {
             let item = HLSAssetFactory.makePlayerItem(
                 url: twitterSamples[0],
                 policy: .unrestricted,
@@ -137,24 +147,24 @@ import AVFoundation
         try await awaitReadyToPlay(item, timeout: 30)
     }
 
-    @Test func cellularReachesReadyToPlayThroughPassthrough() async throws {
+    @Test func cellularReachesReadyToPlayThroughRewriter() async throws {
         let item = HLSAssetFactory.makePlayerItem(
             url: appleBipBop,
             policy: .automatic,
             viewPixelSize: CGSize(width: 2400, height: 2400),
-            networkClass: { .fastCellular }
+            networkClass: { .cellular }
         )
         let player = AVPlayer(playerItem: item)
         defer { player.replaceCurrentItem(with: nil) }
         try await awaitReadyToPlay(item, timeout: 30)
     }
 
-    /// Sweep the production Twitter fleet through both branches. The
-    /// live-CDN assertion is just `.readyToPlay`; deeper invariants
+    /// Sweep the production Twitter fleet through both rewrite branches.
+    /// The live-CDN assertion is just `.readyToPlay`; deeper invariants
     /// (variant counts, ordering) belong in the rewriter unit tests.
     @Test func sweepProductionSamplesAcrossBothBranches() async throws {
         for url in twitterSamples {
-            for networkClass in [HLSNetworkClass.unconstrained, .fastCellular] {
+            for networkClass in [HLSNetworkClass.unconstrained, .cellular] {
                 let item = HLSAssetFactory.makePlayerItem(
                     url: url,
                     policy: .automatic,

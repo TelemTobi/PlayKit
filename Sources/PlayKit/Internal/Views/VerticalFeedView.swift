@@ -39,12 +39,13 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     
     convenience init(controller: PlaylistController?, delegate: VerticalFeedViewDelegate?) {
         self.init(frame: .zero)
-        
+
         self.controller = controller
         self.delegate = delegate
-        
+
         self.subscribeToPlaylistItems()
         self.subscribeToCurrentIndex()
+        self.subscribeToUserScrollingEnabled()
     }
     
     override init(frame: CGRect) {
@@ -63,12 +64,16 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         if bounds.size != lastCollectionViewSize {
             isLayoutInProgress = true
             lastCollectionViewSize = bounds.size
-            
+
             let currentItemIndexPath = IndexPath(row: controller?.currentIndex ?? .zero, section: .zero)
             collectionView.collectionViewLayout.invalidateLayout()
             collectionView.layoutIfNeeded()
-            collectionView.scrollToItem(at: currentItemIndexPath, at: .centeredHorizontally, animated: false)
-            
+            collectionView.scrollToItem(at: currentItemIndexPath, at: [.centeredVertically, .centeredHorizontally], animated: false)
+
+            if let isEnabled = controller?.isUserScrollingEnabled {
+                applyUserScrolling(isEnabled: isEnabled)
+            }
+
             DispatchQueue.main.async { [weak self] in
                 self?.isLayoutInProgress = false
             }
@@ -96,11 +101,42 @@ final class VerticalFeedView: UIView, PlaylistContentView {
                 if newIndex != self?.mostVisibleIndex {
                     let newIndexPath = IndexPath(row: newIndex, section: .zero)
                     let animated = self?.controller?.setIndexWithAnimation ?? false
-                    self?.collectionView.scrollToItem(at: newIndexPath, at: .centeredHorizontally, animated: animated)
+                    self?.collectionView.scrollToItem(at: newIndexPath, at: [.centeredVertically, .centeredHorizontally], animated: animated)
                 }
-                
+
             }
             .store(in: &subscriptions)
+    }
+
+    private func subscribeToUserScrollingEnabled() {
+        controller?.$isUserScrollingEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                self?.applyUserScrolling(isEnabled: isEnabled)
+            }
+            .store(in: &subscriptions)
+    }
+
+    private func applyUserScrolling(isEnabled: Bool) {
+        guard let scrollView = orthogonalScrollView() else { return }
+        scrollView.isScrollEnabled = isEnabled
+        scrollView.panGestureRecognizer.isEnabled = isEnabled
+    }
+
+    private func orthogonalScrollView() -> UIScrollView? {
+        findOrthogonalScrollView(in: collectionView)
+    }
+
+    private func findOrthogonalScrollView(in view: UIView) -> UIScrollView? {
+        for subview in view.subviews {
+            if let scrollView = subview as? UIScrollView, scrollView !== collectionView {
+                return scrollView
+            }
+            if let found = findOrthogonalScrollView(in: subview) {
+                return found
+            }
+        }
+        return nil
     }
     
     // TODO: Consider debouncing 👇

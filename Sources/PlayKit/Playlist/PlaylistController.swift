@@ -71,6 +71,14 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// Indicates whether subtitle or closedCaption options should be displayed.
     @Published public var showsCaptions: Bool = false
 
+    /// Controls whether the user can pan the feed and whether the orthogonal
+    /// scroll snaps back to the current item across bounds changes.
+    ///
+    /// Set to `false` while the feed is partially covered (e.g. by a sheet) so
+    /// the visible cell stays pinned to ``currentIndex`` even as the surrounding
+    /// frame resizes. Only consumed by `.verticalFeed`.
+    @Published public var isUserScrollingEnabled: Bool = true
+
     public var shouldPlayOnFocus: Bool = true
     
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()

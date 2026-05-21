@@ -95,7 +95,10 @@ public final class PlaylistController: ObservableObject, Identifiable {
     
     internal let players: [AVPlayer]
     internal var setIndexWithAnimation: Bool = false
-    
+
+    /// The HLS variant-selection policy applied to ``PlaylistItem/video`` items.
+    public let qualityPolicy: HLSQualityPolicy
+
     /// Creates a new controller.
     ///
     /// - Parameters:
@@ -110,6 +113,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
     ///     index.
     ///   - isFocused: Whether the playlist starts focused. Focus determines
     ///     whether playback should commence automatically.
+    ///   - qualityPolicy: The HLS quality-selection policy. Defaults to
+    ///     ``HLSQualityPolicy/automatic``.
     public init(
         id: AnyHashable = UUID().uuidString,
         items: [PlaylistItem] = [],
@@ -117,7 +122,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
         isFocused: Bool = false,
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
-        shouldPlayOnFocus: Bool = true
+        shouldPlayOnFocus: Bool = true,
+        qualityPolicy: HLSQualityPolicy = .automatic
     ) {
         self.id = id
         self.items = items
@@ -125,13 +131,14 @@ public final class PlaylistController: ObservableObject, Identifiable {
         self.backwardBuffer = backwardBuffer
         self.forwardBuffer = forwardBuffer
         self.shouldPlayOnFocus = shouldPlayOnFocus
-        
+        self.qualityPolicy = qualityPolicy
+
         if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex
         } else {
             self.currentIndex = .zero
         }
-        
+
         players = (0..<backwardBuffer + forwardBuffer + 1).map { _ in AVPlayer() }
         prepareInitialItemIfNeeded()
     }
@@ -238,16 +245,14 @@ extension PlaylistController {
             Task {
                 await ImageProvider.shared.loadImage(from: url)
             }
-            
-        case let .video(_, url, _):
-            guard let player = players[safe: backwardBuffer],
-                player.currentItem == nil else { break }
-            
-            let item = AVPlayerItem(url: url)
-            player.replaceCurrentItem(with: item)
-            player.automaticallyWaitsToMinimizeStalling = true
-            
-        case .custom, .error, .none:
+
+        case .video, .custom, .error, .none:
+            // Videos are prepared by `UIPlayerView` once the view is in the
+            // hierarchy. Eagerly creating an `AVPlayerItem` here would race
+            // the view-level prepare and double up master-manifest /
+            // variant-playlist / segment fetches — devastating on cellular,
+            // where the duplicate traffic competes for a single LTE/5G pipe
+            // and stalls the visible item's buffer fill.
             break
         }
     }

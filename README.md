@@ -141,6 +141,7 @@ All interaction goes through `PlaylistController`; use these entry points to dri
 - `PlayKit.videoRequestedNotification`
 - `PlayKit.videoStartedNotification`
 - `PlayKit.videoStalledNotification`
+- `PlayKit.videoQualityChangedNotification` — fires on the initial quality resolve and on every resolution change. Payload's `videoQuality` is a label like `"720p"` (short edge of the active variant).
 
 Each carries `PlayKit.NotificationPayload` with the item URL and timestamp.
 

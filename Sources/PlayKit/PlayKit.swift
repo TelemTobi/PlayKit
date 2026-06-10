@@ -36,7 +36,17 @@ public enum PlayKit {
     /// The notification `object` is a ``NotificationPayload`` describing the
     /// item that failed and, when available, the encountered error.
     public static let videoErrorNotification = Notification.Name("PlayKit.videoError")
-    
+
+    /// Posted when the player resolves an initial video quality and again
+    /// whenever the active HLS variant switches to a different resolution.
+    ///
+    /// The notification `object` is a ``NotificationPayload`` whose
+    /// ``NotificationPayload/videoQuality`` is a product-friendly label
+    /// like `"720p"`, derived from the short edge of the variant's
+    /// presentation size. Same-resolution variant switches (bitrate-only
+    /// changes) do not produce this notification.
+    public static let videoQualityChangedNotification = Notification.Name("PlayKit.videoQualityChanged")
+
     /// Payload attached to PlayKit playback notifications.
     ///
     /// This value is delivered as the notification `object` and includes the
@@ -45,10 +55,12 @@ public enum PlayKit {
         public let date = Date()
         public let url: URL
         public let error: Error?
-        
-        init(url: URL, error: Error? = nil) {
+        public let videoQuality: String?
+
+        init(url: URL, error: Error? = nil, videoQuality: String? = nil) {
             self.url = url
             self.error = error
+            self.videoQuality = videoQuality
         }
     }
 }

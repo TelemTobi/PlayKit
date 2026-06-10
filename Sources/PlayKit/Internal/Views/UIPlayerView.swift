@@ -32,6 +32,8 @@ final class UIPlayerView: UIView {
     private var readyObserver: NSKeyValueObservation?
     private var timeObserverToken: Any?
     private var timeControlStatusSubscription: AnyCancellable?
+    private var presentationSizeSubscription: AnyCancellable?
+    private var lastQualityLabel: String?
 
     private var imageLoadingTask: Task<Void, Never>?
     private var timerSubscription: AnyCancellable?
@@ -91,6 +93,7 @@ final class UIPlayerView: UIView {
             registerTimeSubscription()
             registerReachedEndSubscription()
             registerTimeControlStatusSubscription()
+            registerPresentationSizeSubscription()
             
         case let .custom(_, duration, _):
             durationInSeconds = duration
@@ -299,6 +302,37 @@ extension UIPlayerView {
             }
     }
     
+    private func registerPresentationSizeSubscription() {
+        presentationSizeSubscription?.cancel()
+        lastQualityLabel = nil
+
+        presentationSizeSubscription = player.publisher(for: \.currentItem?.presentationSize)
+            .compactMap { $0 }
+            .compactMap(Self.qualityLabel(for:))
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] label in
+                guard let self, case let .video(_, url, _) = item else { return }
+                lastQualityLabel = label
+
+                NotificationCenter.default.post(
+                    name: PlayKit.videoQualityChangedNotification,
+                    object: PlayKit.NotificationPayload(url: url, videoQuality: label)
+                )
+            }
+    }
+
+    /// Maps a variant's presentation size to a product-friendly quality
+    /// label like `"720p"`. Uses the short edge so portrait sources
+    /// (common in vertical feeds) land on the same rung as their
+    /// landscape counterparts — a `720×1280` variant reads as `720p`,
+    /// not `1280p`.
+    private static func qualityLabel(for size: CGSize) -> String? {
+        let shortEdge = Int(min(size.width, size.height).rounded())
+        guard shortEdge > 0 else { return nil }
+        return "\(shortEdge)p"
+    }
+
     private func registerTimeControlStatusSubscription() {
         timeControlStatusSubscription?.cancel()
         

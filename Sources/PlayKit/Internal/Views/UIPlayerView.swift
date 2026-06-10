@@ -33,7 +33,7 @@ final class UIPlayerView: UIView {
     private var timeObserverToken: Any?
     private var timeControlStatusSubscription: AnyCancellable?
     private var presentationSizeSubscription: AnyCancellable?
-    private var lastQualityLabel: String?
+    private var lastEmittedQualityLabel: String?
 
     private var imageLoadingTask: Task<Void, Never>?
     private var timerSubscription: AnyCancellable?
@@ -304,22 +304,35 @@ extension UIPlayerView {
     
     private func registerPresentationSizeSubscription() {
         presentationSizeSubscription?.cancel()
-        lastQualityLabel = nil
+        lastEmittedQualityLabel = nil
 
         presentationSizeSubscription = player.publisher(for: \.currentItem?.presentationSize)
-            .compactMap { $0 }
-            .compactMap(Self.qualityLabel(for:))
-            .removeDuplicates()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] label in
-                guard let self, case let .video(_, url, _) = item else { return }
-                lastQualityLabel = label
-
-                NotificationCenter.default.post(
-                    name: PlayKit.videoQualityChangedNotification,
-                    object: PlayKit.NotificationPayload(url: url, videoQuality: label)
-                )
+            .sink { [weak self] _ in
+                self?.emitQualityChangedIfPlaying()
             }
+    }
+
+    /// Posts ``PlayKit/videoQualityChangedNotification`` for the active
+    /// variant, but only while playback is running and the label differs
+    /// from the last one we posted. Items prepared into the feed buffer
+    /// resolve a presentation size before they're ever told to play;
+    /// gating on `timeControlStatus` keeps those silent. The first real
+    /// play transition then emits the current label so consumers see the
+    /// starting quality.
+    private func emitQualityChangedIfPlaying() {
+        guard player.timeControlStatus == .playing,
+              case let .video(_, url, _) = item,
+              let size = player.currentItem?.presentationSize,
+              let label = Self.qualityLabel(for: size),
+              label != lastEmittedQualityLabel
+        else { return }
+
+        lastEmittedQualityLabel = label
+        NotificationCenter.default.post(
+            name: PlayKit.videoQualityChangedNotification,
+            object: PlayKit.NotificationPayload(url: url, videoQuality: label)
+        )
     }
 
     /// Maps a variant's presentation size to a product-friendly quality
@@ -344,11 +357,12 @@ extension UIPlayerView {
                 switch status {
                 case .playing:
                     self.status.value = .ready
-                    
+
                     NotificationCenter.default.post(
                         name: PlayKit.videoStartedNotification,
                         object: PlayKit.NotificationPayload(url: url)
                     )
+                    emitQualityChangedIfPlaying()
                     
                 case .waitingToPlayAtSpecifiedRate:
                     if player.reasonForWaitingToPlay == AVPlayer.WaitingReason.toMinimizeStalls {

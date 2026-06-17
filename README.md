@@ -15,7 +15,7 @@ A lightweight, UIKit-powered playlist engine for SwiftUI and UIKit that delivers
 - 📱 Demo project: [PlayKit Demo](https://github.com/TelemTobi/PlayKit-Demo)
 
 ## Requirements
-- iOS 15+
+- iOS 16+
 - Swift 5.9+
 
 ## Installation (Swift Package Manager)

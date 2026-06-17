@@ -224,15 +224,15 @@ final class UIPlayerView: UIView {
     }
 
     func setShowsBuiltInClosedCaptions(_ newValue: Bool) {
-        guard let playerItem = player.currentItem,
-              let legibleGroup = playerItem.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
-              let captionsOption = legibleGroup.options.first(where: { $0.mediaType == .subtitle || $0.mediaType == .closedCaption })
-        else { return }
-        
-        if newValue {
-            player.currentItem?.select(captionsOption, in: legibleGroup)
-        } else {
-            player.currentItem?.select(nil, in: legibleGroup)
+        guard let playerItem = player.currentItem else { return }
+
+        Task { [weak self] in
+            guard let legibleGroup = try? await playerItem.asset.loadMediaSelectionGroup(for: .legible),
+                  let captionsOption = legibleGroup.captionsOption,
+                  self?.player.currentItem == playerItem
+            else { return }
+
+            self?.player.currentItem?.select(newValue ? captionsOption : nil, in: legibleGroup)
         }
     }
 }
@@ -247,15 +247,9 @@ extension UIPlayerView {
                 case .readyToPlay:
                     let duration = self?.player.currentItem?.duration.seconds ?? .zero
                     self?.durationInSeconds = (duration.isNaN || duration.isInfinite) ? .zero : duration
-                    
-                    if let asset = self?.player.currentItem?.asset,
-                       let legibleGroup = asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
-                       legibleGroup.options.contains(where: {
-                           ($0.mediaType == .subtitle || $0.mediaType == .closedCaption) && $0.extendedLanguageTag != nil
-                       }) {
-                        self?.hasCaptions = true
-                    }
-                    
+
+                    self?.loadCaptionAvailability()
+
                     self?.status.value = .ready
                     
                 case .failed:
@@ -275,6 +269,18 @@ extension UIPlayerView {
             }
     }
     
+    private func loadCaptionAvailability() {
+        guard let currentItem = player.currentItem else { return }
+
+        Task { [weak self] in
+            guard let legibleGroup = try? await currentItem.asset.loadMediaSelectionGroup(for: .legible),
+                  self?.player.currentItem == currentItem
+            else { return }
+
+            self?.hasCaptions = legibleGroup.hasSelectableCaptions
+        }
+    }
+
     private func registerTimeSubscription() {
         if let timeObserverToken {
             player.removeTimeObserver(timeObserverToken)
@@ -366,5 +372,15 @@ extension UIPlayerView {
                     reachedEnd.send()
                 }
             }
+    }
+}
+
+private extension AVMediaSelectionGroup {
+    var captionsOption: AVMediaSelectionOption? {
+        options.first { $0.mediaType == .subtitle || $0.mediaType == .closedCaption }
+    }
+
+    var hasSelectableCaptions: Bool {
+        options.contains { ($0.mediaType == .subtitle || $0.mediaType == .closedCaption) && $0.extendedLanguageTag != nil }
     }
 }

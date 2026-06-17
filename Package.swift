@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "PlayKit",
     platforms: [
-        .iOS(.v14),
+        .iOS(.v16),
         .macOS(.v11),
         .tvOS(.v14),
         .watchOS(.v6)

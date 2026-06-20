@@ -126,6 +126,46 @@ import Testing
         #expect(rewritten.contains("320x568"))
     }
 
+    /// Portrait masters encode `RESOLUTION=WIDTHxHEIGHT` with the *long*
+    /// edge as height, so the floor must be measured against the shorter
+    /// side. This production ladder ({320x568, 480x852, 720x1280,
+    /// 1080x1920}) has a 480-wide rung (480x852) whose height (852)
+    /// exceeds 720 — flooring on raw height would promote it and start a
+    /// visibly sub-720p stream. The 720 floor must land on 720x1280.
+    @Test func portraitFloorMeasuresShorterSide() throws {
+        let portraitMaster = """
+        #EXTM3U
+        #EXT-X-VERSION:6
+        #EXT-X-INDEPENDENT-SEGMENTS
+        #EXT-X-STREAM-INF:BANDWIDTH=705575,RESOLUTION=320x568,CODECS="avc1.4D401F"
+        /amplify_video/x/pl/avc1/320x568/a.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=1066580,RESOLUTION=480x852,CODECS="avc1.4D401F"
+        /amplify_video/x/pl/avc1/480x852/b.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=2430012,RESOLUTION=720x1280,CODECS="avc1.640020"
+        /amplify_video/x/pl/avc1/720x1280/c.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=10503867,RESOLUTION=1080x1920,CODECS="avc1.640032"
+        /amplify_video/x/pl/avc1/1080x1920/d.m3u8
+        """
+        // Reorder path: 720x1280 is promoted, full ladder retained.
+        let reordered = try #require(
+            HLSManifestRewriter.rewrite(manifest: portraitMaster, baseURL: baseURL, targetHeight: 720)
+        )
+        let reorderedURIs = streamInfURIs(in: reordered)
+        #expect(reorderedURIs.count == 4)
+        #expect(reorderedURIs.first?.contains("720x1280") == true)
+
+        // Hard floor: 320x568 (320 wide) and 480x852 (480 wide) are below
+        // the floor and must be stripped; 720x1280 leads.
+        let hardFloored = try #require(
+            HLSManifestRewriter.rewrite(manifest: portraitMaster, baseURL: baseURL, targetHeight: 720, removeBelowTarget: true)
+        )
+        let hardURIs = streamInfURIs(in: hardFloored)
+        #expect(hardURIs.count == 2)
+        #expect(hardURIs.first?.contains("720x1280") == true)
+        #expect(hardFloored.contains("480x852") == false)
+        #expect(hardFloored.contains("320x568") == false)
+    }
+
     // MARK: - Hard floor (removeBelowTarget)
 
     /// With `removeBelowTarget` the sub-floor rungs are stripped: the

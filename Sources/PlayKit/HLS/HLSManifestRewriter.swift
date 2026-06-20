@@ -146,13 +146,22 @@ internal struct HLSManifestRewriter {
         (a.height ?? 0) < (b.height ?? 0)
     }
 
+    /// The variant's "quality height" — the *shorter* of the two
+    /// `RESOLUTION` dimensions. HLS encodes `RESOLUTION=WIDTHxHEIGHT`, so
+    /// for landscape sources this is the height (the conventional "720p"
+    /// number) and for portrait sources it's the width. Flooring on the
+    /// shorter side keeps a `720` floor meaning the same perceived quality
+    /// regardless of orientation. Taking the raw height instead lets a
+    /// portrait rung like `480x852` (height 852) spuriously clear a 720
+    /// floor while only being 480 wide — promoting a visibly sub-720p
+    /// variant.
     private static func parseHeight(from attributesLine: String) -> Int? {
         guard let range = attributesLine.range(of: "RESOLUTION=") else { return nil }
         let after = attributesLine[range.upperBound...]
         let token = after.split(whereSeparator: { $0 == "," || $0.isWhitespace }).first ?? Substring(after)
         let parts = token.split(separator: "x")
-        guard parts.count == 2, let height = Int(parts[1]) else { return nil }
-        return height
+        guard parts.count == 2, let width = Int(parts[0]), let height = Int(parts[1]) else { return nil }
+        return min(width, height)
     }
 
     /// Rewrites the value of a `URI="..."` attribute to an absolute URL.

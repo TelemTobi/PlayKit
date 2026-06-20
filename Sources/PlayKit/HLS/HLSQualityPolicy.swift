@@ -91,6 +91,11 @@ public enum HLSQualityPolicy: Sendable, Equatable {
         /// Minimum video pixel height to promote on Wi-Fi or wired
         /// Ethernet.
         ///
+        /// Measured against each variant's *shorter* edge, so the value
+        /// means the same perceived quality ("720p") whether the source is
+        /// landscape or portrait — a portrait `480x852` rung counts as 480,
+        /// not 852.
+        ///
         /// The rewriter promotes the smallest variant whose height is
         /// `>= wifiMinimumHeight` to the first position in the master
         /// playlist; if no variant clears the bar (e.g. a low-ladder

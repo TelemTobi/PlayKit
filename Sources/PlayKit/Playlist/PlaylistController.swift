@@ -71,6 +71,12 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// Indicates whether subtitle or closedCaption options should be displayed.
     @Published public var showsCaptions: Bool = false
 
+    /// Indicates whether audio output is muted across the entire playlist.
+    ///
+    /// Applies to every buffered item, not just the current one, and
+    /// persists across item transitions until the consumer flips it back.
+    @Published public var isMuted: Bool = false
+
     /// Controls whether the user can pan the feed and whether the orthogonal
     /// scroll snaps back to the current item across bounds changes.
     ///

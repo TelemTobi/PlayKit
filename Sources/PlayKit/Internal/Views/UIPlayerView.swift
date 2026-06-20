@@ -223,6 +223,10 @@ final class UIPlayerView: UIView {
         return CGSize(width: longEdge, height: longEdge)
     }
 
+    func setMuted(_ newValue: Bool) {
+        player.isMuted = newValue
+    }
+
     func setShowsBuiltInClosedCaptions(_ newValue: Bool) {
         guard let playerItem = player.currentItem else { return }
 

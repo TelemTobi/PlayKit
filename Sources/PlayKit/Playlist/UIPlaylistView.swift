@@ -30,6 +30,7 @@ public final class UIPlaylistView: UIView {
     private var indexSubscription: AnyCancellable?
     private var rateSubscription: AnyCancellable?
     private var mediaSelectionSubscription: AnyCancellable?
+    private var mutedSubscription: AnyCancellable?
     
     private var currentPlayer: UIPlayerView? {
         guard let backwardBuffer = controller?.backwardBuffer else { return nil }
@@ -98,6 +99,7 @@ public final class UIPlaylistView: UIView {
         subscribeToCurrentIndex()
         subscribeToRate()
         subscribeToBuiltInCaptions()
+        subscribeToMuted()
         prepareCurrentPlayer()
     }
     
@@ -294,7 +296,18 @@ public final class UIPlaylistView: UIView {
                 self?.players.forEach { $0.setShowsBuiltInClosedCaptions(newValue) }
             }
     }
-    
+
+    private func subscribeToMuted() {
+        mutedSubscription?.cancel()
+
+        mutedSubscription = controller?.$isMuted
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newValue in
+                self?.players.forEach { $0.setMuted(newValue) }
+            }
+    }
+
     private func prepareAllPlayers() {
         prepareCurrentPlayer()
         prepareRelativePlayers()

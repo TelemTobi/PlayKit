@@ -42,15 +42,36 @@ internal final class HLSNetworkClassifier: @unchecked Sendable {
         monitor.start(queue: queue)
     }
 
+    /// Eagerly instantiates the shared classifier so its `NWPathMonitor`
+    /// starts observing *before* the first video is prepared.
+    ///
+    /// The monitor is otherwise created lazily on the first `current`
+    /// access — typically inside the first `makePlayerItem` — at which
+    /// point it hasn't yet delivered a path and classification falls back
+    /// to `.unknown` (→ passthrough → AVPlayer cold-starts on the lowest
+    /// variant, defeating a configured quality floor). Warming up at
+    /// controller creation gives the monitor the create-to-prepare window
+    /// to settle. Safe and cheap to call repeatedly.
+    static func warmUp() {
+        _ = shared
+    }
+
     /// The current network class.
     ///
     /// `NWPathMonitor.pathUpdateHandler` runs on its dispatch queue, so on
     /// app launch the first video can race ahead of the first callback.
     /// Falling back to `monitor.currentPath` in that window avoids
-    /// classifying as `.unknown` and degrading initial playback to
-    /// AVPlayer's "start on the lowest variant" default — Apple documents
-    /// `currentPath` as queryable at any time, returning the most recent
-    /// path the monitor observed.
+    /// classifying as `.unknown` — Apple documents `currentPath` as
+    /// queryable at any time, returning the most recent path the monitor
+    /// observed. See also ``warmUp()``, which starts the monitor early so
+    /// this fallback has a settled path to read.
+    ///
+    /// Only a genuinely unsatisfied path (no connection determined yet)
+    /// maps to `.unknown`. Any *satisfied* path is classified: cellular or
+    /// otherwise-expensive (e.g. Personal Hotspot) is `.cellular`, and
+    /// every other satisfied interface — Wi-Fi, wired, or `.other` such as
+    /// a VPN tunnel — is `.unconstrained`. This keeps a transient or
+    /// unusual interface from silently dropping to passthrough.
     var current: HLSNetworkClass {
         os_unfair_lock_lock(&lock)
         let cached = cachedPath
@@ -59,13 +80,9 @@ internal final class HLSNetworkClassifier: @unchecked Sendable {
 
         guard path.status == .satisfied else { return .unknown }
         if path.isConstrained { return .constrained }
-
-        if path.usesInterfaceType(.wifi) || path.usesInterfaceType(.wiredEthernet) {
-            return .unconstrained
-        }
-        if path.usesInterfaceType(.cellular) {
+        if path.usesInterfaceType(.cellular) || path.isExpensive {
             return .cellular
         }
-        return .unknown
+        return .unconstrained
     }
 }

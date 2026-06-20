@@ -57,14 +57,14 @@ internal enum HLSAssetFactory {
         case .unconstrained:
             return makeRewrittenItem(
                 url: url,
-                targetHeight: configuration.wifiMinimumHeight,
+                targetHeight: configuration.wifiMinimumResolution,
                 configuration: configuration,
                 viewPixelSize: viewPixelSize
             )
         case .cellular:
             return makeRewrittenItem(
                 url: url,
-                targetHeight: configuration.cellularMinimumHeight,
+                targetHeight: configuration.cellularMinimumResolution,
                 configuration: configuration,
                 viewPixelSize: viewPixelSize
             )
@@ -99,7 +99,10 @@ internal enum HLSAssetFactory {
         }
 
         let asset = AVURLAsset(url: wrappedURL)
-        let delegate = HLSAssetLoaderDelegate(targetHeight: targetHeight)
+        let delegate = HLSAssetLoaderDelegate(
+            targetHeight: targetHeight,
+            removeBelowTarget: configuration.removesVariantsBelowFloor
+        )
         asset.resourceLoader.setDelegate(delegate, queue: loaderQueue)
 
         let item = AVPlayerItem(asset: asset)

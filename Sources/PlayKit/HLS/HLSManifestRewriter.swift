@@ -11,14 +11,20 @@ import Foundation
 /// `startsOnFirstEligibleVariant=true` picks a desired starting variant
 /// rather than the lowest-bitrate one.
 ///
-/// Crucially, no variants are removed. AVPlayer's adaptive bitrate (ABR)
+/// By default no variants are removed: AVPlayer's adaptive bitrate (ABR)
 /// engine relies on the full ladder being present so it can downgrade when
-/// the network deteriorates — dropping the low rungs from the manifest
-/// causes hard stalls on weak cellular because ABR has nowhere to fall
-/// back to. Resolution caps for the render surface are enforced separately
-/// via `AVPlayerItem.preferredMaximumResolution`, which is documented as
-/// a variant-eligibility constraint that still permits ABR to revisit
-/// higher variants when bandwidth allows.
+/// the network deteriorates — dropping the low rungs causes hard stalls on
+/// weak cellular because ABR has nowhere to fall back to. Resolution caps
+/// for the render surface are enforced separately via
+/// `AVPlayerItem.preferredMaximumResolution`, which is documented as a
+/// variant-eligibility constraint that still permits ABR to revisit higher
+/// variants when bandwidth allows.
+///
+/// When `removeBelowTarget` is set, the rewriter additionally strips every
+/// variant below `targetHeight` — turning the floor into a hard minimum
+/// for callers that explicitly prefer buffering at quality over degrading.
+/// This is opt-in precisely because of the stall risk above; if no variant
+/// meets the floor the removal is skipped so the ladder never goes empty.
 internal struct HLSManifestRewriter {
     /// Rewrites a multivariant playlist by:
     ///   1. expanding all relative URIs (variants and EXT-X-MEDIA renditions)
@@ -39,10 +45,19 @@ internal struct HLSManifestRewriter {
     /// returned in their source order, only with absolute URIs. Returns
     /// `nil` for media playlists (no `EXT-X-STREAM-INF` lines), in which
     /// case the caller should hand the original bytes back unchanged.
+    ///
+    /// When `removeBelowTarget` is `true` and at least one variant meets
+    /// the floor, variants below `targetHeight` are dropped entirely; the
+    /// smallest qualifying variant leads so the initial pick lands on the
+    /// floor, with higher rungs following for ABR headroom. If no variant
+    /// meets the floor the flag is ignored and the standard promote-highest
+    /// fallback applies, preserving the full ladder. Ignored when
+    /// `targetHeight` is `nil`.
     static func rewrite(
         manifest: String,
         baseURL: URL,
-        targetHeight: Int?
+        targetHeight: Int?,
+        removeBelowTarget: Bool = false
     ) -> String? {
         guard manifest.contains("#EXT-X-STREAM-INF") else { return nil }
 
@@ -92,13 +107,23 @@ internal struct HLSManifestRewriter {
         let ordered: [VariantBlock]
         if let targetHeight {
             let ascending = variants.sorted(by: heightAscending)
-            // Smallest variant that meets the floor; if none, the highest
-            // the source offers.
-            let promotedIndex = ascending.firstIndex(where: { ($0.height ?? 0) >= targetHeight })
-                ?? (ascending.count - 1)
-            var rest = ascending
-            let promoted = rest.remove(at: promotedIndex)
-            ordered = [promoted] + rest
+            let qualifying = ascending.filter { ($0.height ?? 0) >= targetHeight }
+            if removeBelowTarget, !qualifying.isEmpty {
+                // Hard floor: keep only variants at/above the floor. The
+                // ascending order puts the smallest qualifying variant
+                // first so `startsOnFirstEligibleVariant` lands on the
+                // floor, while higher rungs remain for ABR to climb.
+                ordered = qualifying
+            } else {
+                // Reorder only: promote the smallest variant that meets the
+                // floor — or the highest the source offers when none do —
+                // and keep the full ladder so ABR can fall back.
+                let promotedIndex = ascending.firstIndex(where: { ($0.height ?? 0) >= targetHeight })
+                    ?? (ascending.count - 1)
+                var rest = ascending
+                let promoted = rest.remove(at: promotedIndex)
+                ordered = [promoted] + rest
+            }
         } else {
             ordered = variants
         }
@@ -121,13 +146,22 @@ internal struct HLSManifestRewriter {
         (a.height ?? 0) < (b.height ?? 0)
     }
 
+    /// The variant's "quality height" — the *shorter* of the two
+    /// `RESOLUTION` dimensions. HLS encodes `RESOLUTION=WIDTHxHEIGHT`, so
+    /// for landscape sources this is the height (the conventional "720p"
+    /// number) and for portrait sources it's the width. Flooring on the
+    /// shorter side keeps a `720` floor meaning the same perceived quality
+    /// regardless of orientation. Taking the raw height instead lets a
+    /// portrait rung like `480x852` (height 852) spuriously clear a 720
+    /// floor while only being 480 wide — promoting a visibly sub-720p
+    /// variant.
     private static func parseHeight(from attributesLine: String) -> Int? {
         guard let range = attributesLine.range(of: "RESOLUTION=") else { return nil }
         let after = attributesLine[range.upperBound...]
         let token = after.split(whereSeparator: { $0 == "," || $0.isWhitespace }).first ?? Substring(after)
         let parts = token.split(separator: "x")
-        guard parts.count == 2, let height = Int(parts[1]) else { return nil }
-        return height
+        guard parts.count == 2, let width = Int(parts[0]), let height = Int(parts[1]) else { return nil }
+        return min(width, height)
     }
 
     /// Rewrites the value of a `URI="..."` attribute to an absolute URL.

@@ -66,14 +66,14 @@ import AVFoundation
         #expect(item.startsOnFirstEligibleVariant == true)
     }
 
-    /// Opting out of cellular promotion (`cellularMinimumHeight = nil`)
+    /// Opting out of cellular promotion (`cellularMinimumResolution = nil`)
     /// falls back to passthrough — the factory shouldn't spend a master
     /// fetch on a no-op rewrite.
     @Test func cellularWithNilFloorUsesPassthroughPath() {
         let policy = HLSQualityPolicy.custom(
             HLSQualityPolicy.Configuration(
-                wifiMinimumHeight: 720,
-                cellularMinimumHeight: nil
+                wifiMinimumResolution: 720,
+                cellularMinimumResolution: nil
             )
         )
         let item = HLSAssetFactory.makePlayerItem(
@@ -188,7 +188,7 @@ import AVFoundation
     /// this invariant exists to catch in the Wi-Fi branch as well.
     @Test func wifiRewriterPreservesEveryVariant() async throws {
         let baseConfig = HLSQualityPolicy.Configuration()
-        let target = baseConfig.wifiMinimumHeight
+        let target = baseConfig.wifiMinimumResolution
 
         for url in twitterSamples {
             let manifest: String

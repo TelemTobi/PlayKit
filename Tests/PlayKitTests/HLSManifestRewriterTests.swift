@@ -2,11 +2,12 @@ import Foundation
 import Testing
 @testable import PlayKit
 
-/// Unit tests on the rewriter. The rewriter is the Wi-Fi-only branch of
-/// `HLSAssetFactory` — cellular paths bypass it entirely — so these tests
-/// exercise the wifi target heights the production policy ships with
-/// (720 by default) plus a couple of edge-case targets to keep the
-/// rewriter robust against future configuration knobs.
+/// Unit tests on the rewriter. The rewriter runs on both networks
+/// `HLSAssetFactory` rewrites (Wi-Fi at a 720 floor, cellular at 360),
+/// so these tests exercise both production floors plus a couple of
+/// edge-case targets to keep the rewriter robust against future
+/// configuration knobs. The `removeBelowTarget` cases cover the opt-in
+/// hard-floor path that strips sub-floor variants.
 @Suite struct HLSManifestRewriterTests {
     /// Twitter portrait ladder shape — heights {404, 608, 912}. Every
     /// production sample we've seen has a similar shape.
@@ -123,6 +124,112 @@ import Testing
         #expect(variantURIs.first?.contains("480x852") == true)
         // The smaller rung must still be present for ABR.
         #expect(rewritten.contains("320x568"))
+    }
+
+    /// Portrait masters encode `RESOLUTION=WIDTHxHEIGHT` with the *long*
+    /// edge as height, so the floor must be measured against the shorter
+    /// side. This production ladder ({320x568, 480x852, 720x1280,
+    /// 1080x1920}) has a 480-wide rung (480x852) whose height (852)
+    /// exceeds 720 — flooring on raw height would promote it and start a
+    /// visibly sub-720p stream. The 720 floor must land on 720x1280.
+    @Test func portraitFloorMeasuresShorterSide() throws {
+        let portraitMaster = """
+        #EXTM3U
+        #EXT-X-VERSION:6
+        #EXT-X-INDEPENDENT-SEGMENTS
+        #EXT-X-STREAM-INF:BANDWIDTH=705575,RESOLUTION=320x568,CODECS="avc1.4D401F"
+        /amplify_video/x/pl/avc1/320x568/a.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=1066580,RESOLUTION=480x852,CODECS="avc1.4D401F"
+        /amplify_video/x/pl/avc1/480x852/b.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=2430012,RESOLUTION=720x1280,CODECS="avc1.640020"
+        /amplify_video/x/pl/avc1/720x1280/c.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=10503867,RESOLUTION=1080x1920,CODECS="avc1.640032"
+        /amplify_video/x/pl/avc1/1080x1920/d.m3u8
+        """
+        // Reorder path: 720x1280 is promoted, full ladder retained.
+        let reordered = try #require(
+            HLSManifestRewriter.rewrite(manifest: portraitMaster, baseURL: baseURL, targetHeight: 720)
+        )
+        let reorderedURIs = streamInfURIs(in: reordered)
+        #expect(reorderedURIs.count == 4)
+        #expect(reorderedURIs.first?.contains("720x1280") == true)
+
+        // Hard floor: 320x568 (320 wide) and 480x852 (480 wide) are below
+        // the floor and must be stripped; 720x1280 leads.
+        let hardFloored = try #require(
+            HLSManifestRewriter.rewrite(manifest: portraitMaster, baseURL: baseURL, targetHeight: 720, removeBelowTarget: true)
+        )
+        let hardURIs = streamInfURIs(in: hardFloored)
+        #expect(hardURIs.count == 2)
+        #expect(hardURIs.first?.contains("720x1280") == true)
+        #expect(hardFloored.contains("480x852") == false)
+        #expect(hardFloored.contains("320x568") == false)
+    }
+
+    // MARK: - Hard floor (removeBelowTarget)
+
+    /// With `removeBelowTarget` the sub-floor rungs are stripped: the
+    /// landscape ladder {270, 360, 720, 1080} at a 720 floor keeps only
+    /// {720, 1080}, with 720 leading so the initial pick lands on the
+    /// floor and 1080 left for ABR headroom.
+    @Test func hardFloorRemovesVariantsBelowTarget() throws {
+        let rewritten = try #require(
+            HLSManifestRewriter.rewrite(
+                manifest: Self.twitterLandscapeMaster,
+                baseURL: baseURL,
+                targetHeight: 720,
+                removeBelowTarget: true
+            )
+        )
+        let variantURIs = streamInfURIs(in: rewritten)
+        #expect(variantURIs.count == 2)
+        #expect(variantURIs.first?.contains("1280x720") == true)
+        #expect(variantURIs.last?.contains("1920x1080") == true)
+        // Sub-floor rungs are gone entirely.
+        #expect(rewritten.contains("480x270") == false)
+        #expect(rewritten.contains("640x360") == false)
+    }
+
+    /// When no variant meets the floor, `removeBelowTarget` must not strip
+    /// the ladder to nothing — it falls back to promote-highest and keeps
+    /// every rung, exactly like the reorder path. Here every rung (480p,
+    /// 568p) sits below the 720 floor.
+    @Test func hardFloorKeepsLadderWhenNoVariantMeetsFloor() throws {
+        let lowLadderMaster = """
+        #EXTM3U
+        #EXT-X-VERSION:6
+        #EXT-X-INDEPENDENT-SEGMENTS
+        #EXT-X-STREAM-INF:BANDWIDTH=407633,RESOLUTION=270x480,CODECS="avc1.4D401E"
+        /amplify_video/123/pl/avc1/270x480/a.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=823354,RESOLUTION=320x568,CODECS="avc1.4D401F"
+        /amplify_video/123/pl/avc1/320x568/b.m3u8
+        """
+        let rewritten = try #require(
+            HLSManifestRewriter.rewrite(
+                manifest: lowLadderMaster,
+                baseURL: baseURL,
+                targetHeight: 720,
+                removeBelowTarget: true
+            )
+        )
+        let variantURIs = streamInfURIs(in: rewritten)
+        #expect(variantURIs.count == 2)
+        #expect(variantURIs.first?.contains("320x568") == true)
+        #expect(rewritten.contains("270x480"))
+    }
+
+    /// `removeBelowTarget` defaults to `false`, so the default call keeps
+    /// the full ladder — guards against the hard floor leaking into the
+    /// standard reorder path.
+    @Test func removeBelowTargetDefaultsToReorderOnly() throws {
+        let rewritten = try #require(
+            HLSManifestRewriter.rewrite(
+                manifest: Self.twitterLandscapeMaster,
+                baseURL: baseURL,
+                targetHeight: 720
+            )
+        )
+        #expect(streamInfURIs(in: rewritten).count == 4)
     }
 
     @Test func nilTargetPreservesOriginalOrderAndAllVariants() throws {

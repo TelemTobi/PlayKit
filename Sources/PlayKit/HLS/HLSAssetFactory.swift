@@ -57,14 +57,14 @@ internal enum HLSAssetFactory {
         case .unconstrained:
             return makeRewrittenItem(
                 url: url,
-                targetHeight: configuration.wifiMinimumHeight,
+                targetHeight: configuration.wifiMinimumResolution,
                 configuration: configuration,
                 viewPixelSize: viewPixelSize
             )
         case .cellular:
             return makeRewrittenItem(
                 url: url,
-                targetHeight: configuration.cellularMinimumHeight,
+                targetHeight: configuration.cellularMinimumResolution,
                 configuration: configuration,
                 viewPixelSize: viewPixelSize
             )

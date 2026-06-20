@@ -131,6 +131,11 @@ public final class PlaylistController: ObservableObject, Identifiable {
         shouldPlayOnFocus: Bool = true,
         qualityPolicy: HLSQualityPolicy = .automatic
     ) {
+        // Start network-path monitoring now so the first video prepare
+        // doesn't race the monitor's initial callback and misclassify as
+        // `.unknown` (which would bypass the quality floor via passthrough).
+        HLSNetworkClassifier.warmUp()
+
         self.id = id
         self.items = items
         self.isFocused = isFocused

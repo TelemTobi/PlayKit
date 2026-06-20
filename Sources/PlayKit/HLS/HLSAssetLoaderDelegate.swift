@@ -11,9 +11,11 @@ import AVFoundation
 /// Intercepts AVPlayer's request for a multivariant HLS playlist so the
 /// payload can be reordered before AVPlayer parses it.
 ///
-/// The factory only attaches this delegate on Wi-Fi / wired networks —
-/// cellular and constrained paths skip the rewrite entirely so AVPlayer's
-/// native, bandwidth-aware ABR runs unimpeded. As a result this class
+/// The factory attaches this delegate on the network classes it rewrites
+/// (Wi-Fi / wired and cellular, each with its own floor); constrained /
+/// unknown paths skip the rewrite entirely so AVPlayer's native,
+/// bandwidth-aware ABR runs unimpeded. The factory resolves the floor and
+/// whether to remove sub-floor variants per network class, so this class
 /// doesn't need to consult the network class itself.
 ///
 /// Only the master playlist URL is wrapped with the custom scheme;
@@ -24,6 +26,7 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
     static let scheme = "pkhls"
 
     private let targetHeight: Int?
+    private let removeBelowTarget: Bool
 
     /// Tracks the in-flight `URLSessionDataTask` for each loading request
     /// so the task can be cancelled when AVPlayer cancels the request —
@@ -34,8 +37,9 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
     private let pendingTasks = NSMapTable<AVAssetResourceLoadingRequest, URLSessionDataTask>.weakToStrongObjects()
     private let pendingTasksLock = NSLock()
 
-    init(targetHeight: Int?) {
+    init(targetHeight: Int?, removeBelowTarget: Bool = false) {
         self.targetHeight = targetHeight
+        self.removeBelowTarget = removeBelowTarget
     }
 
     func resourceLoader(
@@ -49,6 +53,7 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
         }
 
         let targetHeight = self.targetHeight
+        let removeBelowTarget = self.removeBelowTarget
 
         // `loadingRequest` MUST be captured strongly. Nothing else holds
         // it across this async hop — capturing it weakly causes the
@@ -74,7 +79,8 @@ internal final class HLSAssetLoaderDelegate: NSObject, AVAssetResourceLoaderDele
             let rewritten = HLSManifestRewriter.rewrite(
                 manifest: manifestText,
                 baseURL: baseURL,
-                targetHeight: targetHeight
+                targetHeight: targetHeight,
+                removeBelowTarget: removeBelowTarget
             ) ?? manifestText
 
             let outputData = Data(rewritten.utf8)

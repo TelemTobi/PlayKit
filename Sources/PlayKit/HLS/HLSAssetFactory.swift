@@ -99,7 +99,10 @@ internal enum HLSAssetFactory {
         }
 
         let asset = AVURLAsset(url: wrappedURL)
-        let delegate = HLSAssetLoaderDelegate(targetHeight: targetHeight)
+        let delegate = HLSAssetLoaderDelegate(
+            targetHeight: targetHeight,
+            removeBelowTarget: configuration.removesVariantsBelowFloor
+        )
         asset.resourceLoader.setDelegate(delegate, queue: loaderQueue)
 
         let item = AVPlayerItem(asset: asset)

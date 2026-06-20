@@ -2,11 +2,12 @@ import Foundation
 import Testing
 @testable import PlayKit
 
-/// Unit tests on the rewriter. The rewriter is the Wi-Fi-only branch of
-/// `HLSAssetFactory` — cellular paths bypass it entirely — so these tests
-/// exercise the wifi target heights the production policy ships with
-/// (720 by default) plus a couple of edge-case targets to keep the
-/// rewriter robust against future configuration knobs.
+/// Unit tests on the rewriter. The rewriter runs on both networks
+/// `HLSAssetFactory` rewrites (Wi-Fi at a 720 floor, cellular at 360),
+/// so these tests exercise both production floors plus a couple of
+/// edge-case targets to keep the rewriter robust against future
+/// configuration knobs. The `removeBelowTarget` cases cover the opt-in
+/// hard-floor path that strips sub-floor variants.
 @Suite struct HLSManifestRewriterTests {
     /// Twitter portrait ladder shape — heights {404, 608, 912}. Every
     /// production sample we've seen has a similar shape.
@@ -123,6 +124,72 @@ import Testing
         #expect(variantURIs.first?.contains("480x852") == true)
         // The smaller rung must still be present for ABR.
         #expect(rewritten.contains("320x568"))
+    }
+
+    // MARK: - Hard floor (removeBelowTarget)
+
+    /// With `removeBelowTarget` the sub-floor rungs are stripped: the
+    /// landscape ladder {270, 360, 720, 1080} at a 720 floor keeps only
+    /// {720, 1080}, with 720 leading so the initial pick lands on the
+    /// floor and 1080 left for ABR headroom.
+    @Test func hardFloorRemovesVariantsBelowTarget() throws {
+        let rewritten = try #require(
+            HLSManifestRewriter.rewrite(
+                manifest: Self.twitterLandscapeMaster,
+                baseURL: baseURL,
+                targetHeight: 720,
+                removeBelowTarget: true
+            )
+        )
+        let variantURIs = streamInfURIs(in: rewritten)
+        #expect(variantURIs.count == 2)
+        #expect(variantURIs.first?.contains("1280x720") == true)
+        #expect(variantURIs.last?.contains("1920x1080") == true)
+        // Sub-floor rungs are gone entirely.
+        #expect(rewritten.contains("480x270") == false)
+        #expect(rewritten.contains("640x360") == false)
+    }
+
+    /// When no variant meets the floor, `removeBelowTarget` must not strip
+    /// the ladder to nothing — it falls back to promote-highest and keeps
+    /// every rung, exactly like the reorder path. Here every rung (480p,
+    /// 568p) sits below the 720 floor.
+    @Test func hardFloorKeepsLadderWhenNoVariantMeetsFloor() throws {
+        let lowLadderMaster = """
+        #EXTM3U
+        #EXT-X-VERSION:6
+        #EXT-X-INDEPENDENT-SEGMENTS
+        #EXT-X-STREAM-INF:BANDWIDTH=407633,RESOLUTION=270x480,CODECS="avc1.4D401E"
+        /amplify_video/123/pl/avc1/270x480/a.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=823354,RESOLUTION=320x568,CODECS="avc1.4D401F"
+        /amplify_video/123/pl/avc1/320x568/b.m3u8
+        """
+        let rewritten = try #require(
+            HLSManifestRewriter.rewrite(
+                manifest: lowLadderMaster,
+                baseURL: baseURL,
+                targetHeight: 720,
+                removeBelowTarget: true
+            )
+        )
+        let variantURIs = streamInfURIs(in: rewritten)
+        #expect(variantURIs.count == 2)
+        #expect(variantURIs.first?.contains("320x568") == true)
+        #expect(rewritten.contains("270x480"))
+    }
+
+    /// `removeBelowTarget` defaults to `false`, so the default call keeps
+    /// the full ladder — guards against the hard floor leaking into the
+    /// standard reorder path.
+    @Test func removeBelowTargetDefaultsToReorderOnly() throws {
+        let rewritten = try #require(
+            HLSManifestRewriter.rewrite(
+                manifest: Self.twitterLandscapeMaster,
+                baseURL: baseURL,
+                targetHeight: 720
+            )
+        )
+        #expect(streamInfURIs(in: rewritten).count == 4)
     }
 
     @Test func nilTargetPreservesOriginalOrderAndAllVariants() throws {

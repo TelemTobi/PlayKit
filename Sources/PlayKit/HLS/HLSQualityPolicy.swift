@@ -51,6 +51,42 @@ public enum HLSQualityPolicy: Sendable, Equatable {
     /// Caller-supplied configuration.
     case custom(Configuration)
 
+    /// A floor-everywhere convenience: biases the initial variant to
+    /// `height` on both Wi-Fi and cellular.
+    ///
+    /// Use this for surfaces where quality matters more than time-to-first-
+    /// frame — e.g. an autoplaying hero that should never play below a
+    /// given resolution.
+    ///
+    /// - Parameters:
+    ///   - height: The minimum variant height to bias toward on every
+    ///     network class that PlayKit rewrites.
+    ///   - hard: When `true`, variants below `height` are *removed* from
+    ///     the manifest so ABR cannot drop beneath the floor — the video
+    ///     waits/buffers at the floor rather than degrading. The trade-off
+    ///     is stalling (or never starting) on a link that can't sustain
+    ///     the floor. When `false` (default) the floor only biases the
+    ///     initial pick and ABR may still dip below it. If no source
+    ///     variant meets `height`, removal is skipped and the highest
+    ///     available variant is promoted instead, so playback never ends
+    ///     up with an empty ladder.
+    ///   - capResolutionToViewSize: Mirrors
+    ///     ``Configuration/capsResolutionToViewSize``. Defaults to `false`
+    ///     here so a small render surface can't cap decode resolution back
+    ///     beneath the floor you just asked for.
+    public static func minimumHeight(
+        _ height: Int,
+        hard: Bool = false,
+        capResolutionToViewSize: Bool = false
+    ) -> HLSQualityPolicy {
+        .custom(.init(
+            wifiMinimumHeight: height,
+            cellularMinimumHeight: height,
+            removesVariantsBelowFloor: hard,
+            capsResolutionToViewSize: capResolutionToViewSize
+        ))
+    }
+
     public struct Configuration: Sendable, Equatable, Hashable {
         /// Minimum video pixel height to promote on Wi-Fi or wired
         /// Ethernet.
@@ -71,6 +107,24 @@ public enum HLSQualityPolicy: Sendable, Equatable {
         /// native ABR pick the initial variant.
         public var cellularMinimumHeight: Int?
 
+        /// When `true`, variants below the network's floor
+        /// (`wifiMinimumHeight` / `cellularMinimumHeight`) are *removed*
+        /// from the rewritten master playlist rather than merely reordered.
+        ///
+        /// Reordering only controls the *initial* pick — ABR remains free
+        /// to drop to a lower rung mid-playback. Removal turns the floor
+        /// into a true minimum: with no lower rung present, AVPlayer
+        /// buffers at the floor instead of degrading. The cost is stalling
+        /// (or never starting) when the link can't sustain the floor, so
+        /// reserve this for surfaces that prefer waiting over low quality.
+        ///
+        /// Only takes effect on network classes PlayKit rewrites (Wi-Fi /
+        /// cellular with a non-`nil` floor). Low Data Mode / unknown stay
+        /// on passthrough and are unaffected. If no source variant meets
+        /// the floor, removal is skipped to avoid an empty ladder. Defaults
+        /// to `false`.
+        public var removesVariantsBelowFloor: Bool
+
         /// When `true`, `AVPlayerItem.preferredMaximumResolution` is set
         /// to the player view's pixel size so AVPlayer doesn't decode
         /// higher than it renders. Applies on every network.
@@ -79,10 +133,12 @@ public enum HLSQualityPolicy: Sendable, Equatable {
         public init(
             wifiMinimumHeight: Int? = 720,
             cellularMinimumHeight: Int? = 360,
+            removesVariantsBelowFloor: Bool = false,
             capsResolutionToViewSize: Bool = true
         ) {
             self.wifiMinimumHeight = wifiMinimumHeight
             self.cellularMinimumHeight = cellularMinimumHeight
+            self.removesVariantsBelowFloor = removesVariantsBelowFloor
             self.capsResolutionToViewSize = capsResolutionToViewSize
         }
     }

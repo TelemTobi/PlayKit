@@ -112,7 +112,7 @@ final class UIPlayerView: UIView {
             runNonVideoTimer(for: duration)
             
         case let .video(_, url, _):
-            guard player.rate.isZero else { return }
+            guard player.timeControlStatus != .playing else { return }
             
             NotificationCenter.default.post(
                 name: PlayKit.videoRequestedNotification,

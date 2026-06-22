@@ -399,13 +399,11 @@ public final class UIPlaylistView: UIView {
             advanceToNextItem()
             
         case .loop:
-            currentPlayer?.seekToBeginning()
-            currentPlayer?.playWhenReady()
-            
+            currentPlayer?.restart()
+
         case let .repeat(count):
             if repeatIndex < count {
-                currentPlayer?.seekToBeginning()
-                currentPlayer?.playWhenReady()
+                currentPlayer?.restart()
                 repeatIndex += 1
             } else {
                 advanceToNextItem()

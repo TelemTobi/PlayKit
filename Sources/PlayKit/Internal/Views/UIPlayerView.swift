@@ -157,6 +157,27 @@ final class UIPlayerView: UIView {
         player.seek(to: .zero)
         progressInSeconds.value = .zero
     }
+
+    func restart() {
+        guard let item else { return }
+
+        switch item {
+        case .image, .custom, .error:
+            seekToBeginning()
+            playWhenReady()
+
+        case .video:
+            player.seek(to: .zero) { [weak self] finished in
+                guard finished else { return }
+                Task { @MainActor [weak self] in
+                    guard let self, self.item == item else { return }
+                    progressInSeconds.value = .zero
+                    player.play()
+                    player.rate = rate
+                }
+            }
+        }
+    }
     
     func cancel() {
         item = nil

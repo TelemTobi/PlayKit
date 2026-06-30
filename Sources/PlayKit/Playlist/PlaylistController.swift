@@ -85,6 +85,24 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// frame resizes. Only consumed by `.verticalFeed`.
     @Published public var isUserScrollingEnabled: Bool = true
 
+    /// When non-nil, pins each feed cell's content (player view and overlay) to a
+    /// top-anchored region of this height in points instead of filling the cell,
+    /// leaving the area below transparent.
+    ///
+    /// Use this to compress the video while a sheet partially covers the feed (for
+    /// example a comments sheet that the video should shrink above). Pair with
+    /// ``contentTopInset`` to offset the region from the top of the cell. Assigning
+    /// `nil` restores the full-bleed layout. Only consumed by `.verticalFeed`.
+    @Published public var compressedContentHeight: CGFloat?
+
+    /// The offset, in points, from the top of each cell at which compressed content
+    /// begins.
+    ///
+    /// Ignored when ``compressedContentHeight`` is `nil`. Typically set to the top
+    /// safe-area inset so compressed content clears the status bar. Only consumed by
+    /// `.verticalFeed`.
+    @Published public var contentTopInset: CGFloat = .zero
+
     public var shouldPlayOnFocus: Bool = true
     
     internal var progressPublisher = PassthroughSubject<TimeInterval, Never>()

@@ -167,5 +167,35 @@ import Testing
         #expect(ranged[2] == third)
         #expect(controller.currentItem == second)
     }
+
+    @Test func contentCompressionDefaultsToFullBleed() {
+        let controller = PlaylistController(
+            items: [.custom(duration: 1)],
+            initialIndex: 0
+        )
+
+        #expect(controller.compressedContentHeight == nil)
+        #expect(controller.contentTopInset == .zero)
+    }
+
+    @Test func contentCompressionPublishesUpdates() {
+        let controller = PlaylistController(
+            items: [.custom(duration: 1)],
+            initialIndex: 0
+        )
+
+        var received: [CGFloat?] = []
+        let cancellable = controller.$compressedContentHeight
+            .sink { received.append($0) }
+
+        controller.compressedContentHeight = 240
+        controller.contentTopInset = 47
+        controller.compressedContentHeight = nil
+
+        #expect(received == [nil, 240, nil])
+        #expect(controller.contentTopInset == 47)
+
+        cancellable.cancel()
+    }
 }
 

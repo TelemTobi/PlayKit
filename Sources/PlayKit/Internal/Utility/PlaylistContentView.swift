@@ -9,8 +9,10 @@ import UIKit
 
 protocol PlaylistContentView: UIView {
     func reloadData()
+    func setContentCompression(height: CGFloat?, topInset: CGFloat)
 }
 
 extension PlaylistContentView {
     func reloadData() {}
+    func setContentCompression(height: CGFloat?, topInset: CGFloat) {}
 }

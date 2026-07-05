@@ -48,7 +48,6 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         self.subscribeToPlaylistItems()
         self.subscribeToCurrentIndex()
         self.subscribeToUserScrollingEnabled()
-        self.subscribeToContentCompression()
     }
     
     override init(frame: CGRect) {
@@ -126,19 +125,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         scrollView.panGestureRecognizer.isEnabled = isEnabled
     }
 
-    private func subscribeToContentCompression() {
-        guard let controller else { return }
-
-        controller.$compressedContentHeight
-            .combineLatest(controller.$contentTopInset)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] height, topInset in
-                self?.applyContentCompression(height: height, topInset: topInset)
-            }
-            .store(in: &subscriptions)
-    }
-
-    private func applyContentCompression(height: CGFloat?, topInset: CGFloat) {
+    func setContentCompression(height: CGFloat?, topInset: CGFloat) {
         // Ignore redundant updates so a late callback (e.g. a trailing geometry
         // change after dismissal) can't re-apply the same value un-animated and
         // interrupt an in-flight expand/collapse animation.

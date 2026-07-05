@@ -68,6 +68,19 @@ public final class UIPlaylistView: UIView {
     public var overlayForItemAtIndex: ((Int) -> UIView?)? = nil {
         didSet { contentView?.reloadData() }
     }
+
+    /// Pins each feed cell's player view to a top-anchored region of the given
+    /// height (in points), offset from the top by `topInset`, instead of filling
+    /// the cell — leaving the area below transparent.
+    ///
+    /// Use this to compress the video while a sheet partially covers the feed (for
+    /// example a comments sheet that the video should shrink above). The overlay
+    /// stays full-bleed so its content never re-lays-out as the video resizes.
+    /// Passing `nil` for `height` restores the full-bleed layout. Only affects the
+    /// `.verticalFeed` presentation.
+    public func setContentCompression(height: CGFloat?, topInset: CGFloat) {
+        contentView?.setContentCompression(height: height, topInset: topInset)
+    }
     
     override init(frame: CGRect) {
         super.init(frame: frame)

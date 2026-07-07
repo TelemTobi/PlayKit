@@ -38,6 +38,7 @@ final class VerticalFeedView: UIView, PlaylistContentView {
     private var lastCollectionViewSize: CGSize = .zero
     private var compressedContentHeight: CGFloat?
     private var contentTopInset: CGFloat = .zero
+    private var compressedCornerRadius: CGFloat?
     
     convenience init(controller: PlaylistController?, delegate: VerticalFeedViewDelegate?) {
         self.init(frame: .zero)
@@ -125,11 +126,11 @@ final class VerticalFeedView: UIView, PlaylistContentView {
         scrollView.panGestureRecognizer.isEnabled = isEnabled
     }
 
-    func setContentCompression(height: CGFloat?, topInset: CGFloat) {
+    func setContentCompression(height: CGFloat?, topInset: CGFloat, cornerRadius: CGFloat?) {
         // Ignore redundant updates so a late callback (e.g. a trailing geometry
         // change after dismissal) can't re-apply the same value un-animated and
         // interrupt an in-flight expand/collapse animation.
-        guard height != compressedContentHeight || topInset != contentTopInset else { return }
+        guard height != compressedContentHeight || topInset != contentTopInset || cornerRadius != compressedCornerRadius else { return }
 
         // Animate only when entering/leaving the compressed state (crossing the nil
         // boundary). While the sheet is dragged, height streams in continuously and
@@ -138,11 +139,12 @@ final class VerticalFeedView: UIView, PlaylistContentView {
 
         compressedContentHeight = height
         contentTopInset = topInset
+        compressedCornerRadius = cornerRadius
 
         let apply = { [weak self] in
             guard let self else { return }
             for case let cell as VerticalFeedCell in collectionView.visibleCells {
-                cell.applyCompression(height: height, topInset: topInset)
+                cell.applyCompression(height: height, topInset: topInset, cornerRadius: cornerRadius)
             }
             layoutIfNeeded()
         }
@@ -210,7 +212,7 @@ extension VerticalFeedView: UICollectionViewDataSource {
         
         let overlay = delegate?.overlayView(for: indexPath.row)
         cell.embed(playerView, with: overlay)
-        cell.applyCompression(height: compressedContentHeight, topInset: contentTopInset)
+        cell.applyCompression(height: compressedContentHeight, topInset: contentTopInset, cornerRadius: compressedCornerRadius)
         return cell
     }
 }
@@ -220,6 +222,7 @@ fileprivate class VerticalFeedCell: UICollectionViewCell {
     // own content (which the consumer hides/shows) never re-lays-out as the video
     // resizes. This mirrors how StoriesPlayerView keeps overlay layout decoupled
     // from the shrinking video.
+    private weak var playerView: UIView?
     private var playerTopConstraint: NSLayoutConstraint?
     private var playerBottomConstraint: NSLayoutConstraint?
     private var playerHeightConstraint: NSLayoutConstraint?
@@ -227,6 +230,7 @@ fileprivate class VerticalFeedCell: UICollectionViewCell {
     override func prepareForReuse() {
         super.prepareForReuse()
         contentView.subviews.forEach { $0.removeFromSuperview() }
+        playerView = nil
         playerTopConstraint = nil
         playerBottomConstraint = nil
         playerHeightConstraint = nil
@@ -235,6 +239,7 @@ fileprivate class VerticalFeedCell: UICollectionViewCell {
     func embed(_ view: UIView, with overlay: UIView? = nil) {
         contentView.addSubview(view)
         view.translatesAutoresizingMaskIntoConstraints = false
+        playerView = view
 
         // Pin leading/trailing/top to the cell and keep both a bottom anchor
         // (full-bleed) and a height anchor (compressed) around so we can toggle
@@ -262,8 +267,9 @@ fileprivate class VerticalFeedCell: UICollectionViewCell {
     }
 
     /// Toggles the player view between full-bleed (`height == nil`) and a
-    /// top-anchored compressed region of the given height/offset.
-    func applyCompression(height: CGFloat?, topInset: CGFloat) {
+    /// top-anchored compressed region of the given height/offset. While compressed,
+    /// the player view is rounded to `cornerRadius`; full-bleed restores square corners.
+    func applyCompression(height: CGFloat?, topInset: CGFloat, cornerRadius: CGFloat?) {
         guard let playerTopConstraint, let playerBottomConstraint, let playerHeightConstraint else { return }
 
         if let height {
@@ -271,10 +277,17 @@ fileprivate class VerticalFeedCell: UICollectionViewCell {
             playerTopConstraint.constant = topInset
             playerHeightConstraint.constant = height
             playerHeightConstraint.isActive = true
+
+            playerView?.layer.cornerCurve = .continuous
+            playerView?.layer.cornerRadius = cornerRadius ?? 0
+            playerView?.layer.masksToBounds = true
         } else {
             playerHeightConstraint.isActive = false
             playerTopConstraint.constant = 0
             playerBottomConstraint.isActive = true
+
+            playerView?.layer.cornerRadius = 0
+            playerView?.layer.masksToBounds = false
         }
     }
 }

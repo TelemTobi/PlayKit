@@ -19,6 +19,7 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     let gravity: AVLayerVideoGravity
     let compressedContentHeight: CGFloat?
     let contentTopInset: CGFloat
+    let compressedCornerRadius: CGFloat?
     let overlayForItemAtIndex: ((Int) -> Overlay)?
 
     /// Creates a playlist view.
@@ -29,18 +30,21 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
     ///   - compressedContentHeight: When non-nil, pins each feed cell's player view to a top-anchored region of this height (in points) instead of filling the cell, so a partially covering sheet can shrink the video above it. `nil` restores the full-bleed layout. Only affects `.verticalFeed`.
     ///   - contentTopInset: The offset, in points, from the top of each cell at which compressed content begins. Ignored when `compressedContentHeight` is `nil`. Defaults to `0`.
+    ///   - compressedCornerRadius: The corner radius applied to the player view while compressed. `nil` (or `0`) leaves the video square. Ignored when `compressedContentHeight` is `nil`. Only affects `.verticalFeed`. Defaults to `nil`.
     public init(
         type: PlaylistType,
         controller: PlaylistController,
         gravity: AVLayerVideoGravity = .resizeAspect,
         compressedContentHeight: CGFloat? = nil,
-        contentTopInset: CGFloat = 0
+        contentTopInset: CGFloat = 0,
+        compressedCornerRadius: CGFloat? = nil
     ) where Overlay == EmptyView {
         self.playlistType = type
         self.controller = controller
         self.gravity = gravity
         self.compressedContentHeight = compressedContentHeight
         self.contentTopInset = contentTopInset
+        self.compressedCornerRadius = compressedCornerRadius
         self.overlayForItemAtIndex = nil
     }
 
@@ -52,6 +56,7 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
     ///   - gravity: The ``AVLayerVideoGravity`` to apply to rendered video and images. Defaults to ``AVLayerVideoGravity/resizeAspect``.
     ///   - compressedContentHeight: When non-nil, pins each feed cell's player view to a top-anchored region of this height (in points) instead of filling the cell, so a partially covering sheet can shrink the video above it. `nil` restores the full-bleed layout. Only affects `.verticalFeed`.
     ///   - contentTopInset: The offset, in points, from the top of each cell at which compressed content begins. Ignored when `compressedContentHeight` is `nil`. Defaults to `0`.
+    ///   - compressedCornerRadius: The corner radius applied to the player view while compressed. `nil` (or `0`) leaves the video square. Ignored when `compressedContentHeight` is `nil`. Only affects `.verticalFeed`. Defaults to `nil`.
     ///   - overlayForItemAtIndex: A builder that returns an overlay for a given playlist index. Return `nil` to omit an overlay for the item.
     public init(
         type: PlaylistType,
@@ -59,6 +64,7 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
         gravity: AVLayerVideoGravity = .resizeAspect,
         compressedContentHeight: CGFloat? = nil,
         contentTopInset: CGFloat = 0,
+        compressedCornerRadius: CGFloat? = nil,
         @ViewBuilder overlayForItemAtIndex: @escaping (Int) -> Overlay
     ) {
         self.playlistType = type
@@ -66,6 +72,7 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
         self.gravity = gravity
         self.compressedContentHeight = compressedContentHeight
         self.contentTopInset = contentTopInset
+        self.compressedCornerRadius = compressedCornerRadius
         self.overlayForItemAtIndex = overlayForItemAtIndex
     }
 
@@ -77,11 +84,11 @@ public struct PlaylistView<Overlay>: UIViewRepresentable where Overlay : View {
             guard let overlay = overlayForItemAtIndex?(index) else { return nil }
             return UIHostingController(rootView: overlay).view
         }
-        playlistView.setContentCompression(height: compressedContentHeight, topInset: contentTopInset)
+        playlistView.setContentCompression(height: compressedContentHeight, topInset: contentTopInset, cornerRadius: compressedCornerRadius)
         return playlistView
     }
 
     public func updateUIView(_ uiView: UIPlaylistView, context: Context) {
-        uiView.setContentCompression(height: compressedContentHeight, topInset: contentTopInset)
+        uiView.setContentCompression(height: compressedContentHeight, topInset: contentTopInset, cornerRadius: compressedCornerRadius)
     }
 }

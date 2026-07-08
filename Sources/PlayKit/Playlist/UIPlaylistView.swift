@@ -78,8 +78,8 @@ public final class UIPlaylistView: UIView {
     /// stays full-bleed so its content never re-lays-out as the video resizes.
     /// Passing `nil` for `height` restores the full-bleed layout. Only affects the
     /// `.verticalFeed` presentation.
-    public func setContentCompression(height: CGFloat?, topInset: CGFloat) {
-        contentView?.setContentCompression(height: height, topInset: topInset)
+    public func setContentCompression(height: CGFloat?, topInset: CGFloat, cornerRadius: CGFloat? = nil) {
+        contentView?.setContentCompression(height: height, topInset: topInset, cornerRadius: cornerRadius)
     }
     
     override init(frame: CGRect) {

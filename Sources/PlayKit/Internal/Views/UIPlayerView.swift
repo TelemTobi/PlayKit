@@ -167,6 +167,8 @@ final class UIPlayerView: UIView {
             playWhenReady()
 
         case .video:
+            // PlaylistItem is not Sendable; the value is only read on the main actor.
+            nonisolated(unsafe) let item = item
             player.seek(to: .zero) { [weak self] finished in
                 guard finished else { return }
                 Task { @MainActor [weak self] in

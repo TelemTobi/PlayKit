@@ -68,10 +68,9 @@ final class VerticalFeedView: UIView, PlaylistContentView {
             isLayoutInProgress = true
             lastCollectionViewSize = bounds.size
 
-            let currentItemIndexPath = IndexPath(row: controller?.currentIndex ?? .zero, section: .zero)
             collectionView.collectionViewLayout.invalidateLayout()
             collectionView.layoutIfNeeded()
-            collectionView.scrollToItem(at: currentItemIndexPath, at: [.centeredVertically, .centeredHorizontally], animated: false)
+            scrollToItemIfValid(row: controller?.currentIndex ?? .zero, animated: false)
 
             if let isEnabled = controller?.isUserScrollingEnabled {
                 applyUserScrolling(isEnabled: isEnabled)
@@ -82,7 +81,17 @@ final class VerticalFeedView: UIView, PlaylistContentView {
             }
         }
     }
-    
+
+    /// Scrolls to `row` (centered) only when it's a valid index in the collection
+    /// view's current data. `layoutSubviews` can fire with a real frame before the
+    /// playlist items load; scrolling to an index while the section is empty (or
+    /// out of range) raises NSInternalInconsistencyException.
+    private func scrollToItemIfValid(row: Int, animated: Bool) {
+        guard row >= 0, row < collectionView.numberOfItems(inSection: .zero) else { return }
+        let indexPath = IndexPath(row: row, section: .zero)
+        collectionView.scrollToItem(at: indexPath, at: [.centeredVertically, .centeredHorizontally], animated: animated)
+    }
+
     func reloadData() {
         collectionView.reloadData()
     }
@@ -92,21 +101,26 @@ final class VerticalFeedView: UIView, PlaylistContentView {
             .filter { !$0.isEmpty }
             .debounce(for: 0.1, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.collectionView.reloadData()
+                guard let self else { return }
+                collectionView.reloadData()
+                // Re-assert the current index after a reload: the frame may have been
+                // laid out while empty (skipping the scroll), and reloadData otherwise
+                // drops the offset back to the top.
+                collectionView.layoutIfNeeded()
+                scrollToItemIfValid(row: controller?.currentIndex ?? .zero, animated: false)
             }
             .store(in: &subscriptions)
     }
-    
+
     private func subscribeToCurrentIndex() {
         controller?.$currentIndex
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newIndex in
-                if newIndex != self?.mostVisibleIndex {
-                    let newIndexPath = IndexPath(row: newIndex, section: .zero)
-                    let animated = self?.controller?.setIndexWithAnimation ?? false
-                    self?.collectionView.scrollToItem(at: newIndexPath, at: [.centeredVertically, .centeredHorizontally], animated: animated)
+                guard let self else { return }
+                if newIndex != mostVisibleIndex {
+                    let animated = controller?.setIndexWithAnimation ?? false
+                    scrollToItemIfValid(row: newIndex, animated: animated)
                 }
-
             }
             .store(in: &subscriptions)
     }

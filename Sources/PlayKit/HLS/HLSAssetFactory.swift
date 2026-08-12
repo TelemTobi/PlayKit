@@ -49,30 +49,68 @@ internal enum HLSAssetFactory {
         viewPixelSize: CGSize?,
         networkClass: () -> HLSNetworkClass = { HLSNetworkClassifier.shared.current }
     ) -> AVPlayerItem {
+        prepare(
+            url: url,
+            policy: policy,
+            viewPixelSize: viewPixelSize,
+            networkClass: networkClass
+        ).item
+    }
+
+    /// A prepared item together with the decisions that produced it.
+    struct PreparedItem {
+        let item: AVPlayerItem
+        let context: PlayKit.PlaybackContext
+    }
+
+    /// Returns an `AVPlayerItem` configured for the given URL, alongside a
+    /// snapshot of how it was configured.
+    ///
+    /// The context is what makes playback telemetry interpretable downstream:
+    /// one quality policy behaves completely differently depending on which
+    /// branch below it lands in, and this is the only place that knows which
+    /// branch ran. Parameters match ``makePlayerItem(url:policy:viewPixelSize:networkClass:)``.
+    static func prepare(
+        url: URL,
+        policy: HLSQualityPolicy,
+        viewPixelSize: CGSize?,
+        networkClass: () -> HLSNetworkClass = { HLSNetworkClassifier.shared.current }
+    ) -> PreparedItem {
+        let resolvedClass = networkClass()
+
         guard let configuration = policy.configuration, isHLS(url) else {
-            return AVPlayerItem(url: url)
+            return PreparedItem(
+                item: AVPlayerItem(url: url),
+                context: PlayKit.PlaybackContext(
+                    networkClass: resolvedClass.telemetryValue,
+                    isManifestRewritten: false
+                )
+            )
         }
 
-        switch networkClass() {
+        switch resolvedClass {
         case .unconstrained:
             return makeRewrittenItem(
                 url: url,
                 targetHeight: configuration.wifiMinimumResolution,
                 configuration: configuration,
-                viewPixelSize: viewPixelSize
+                viewPixelSize: viewPixelSize,
+                networkClass: resolvedClass
             )
         case .cellular:
             return makeRewrittenItem(
                 url: url,
                 targetHeight: configuration.cellularMinimumResolution,
                 configuration: configuration,
-                viewPixelSize: viewPixelSize
+                viewPixelSize: viewPixelSize,
+                networkClass: resolvedClass
             )
         case .constrained, .unknown:
             return makePassthroughItem(
                 url: url,
                 configuration: configuration,
-                viewPixelSize: viewPixelSize
+                viewPixelSize: viewPixelSize,
+                networkClass: resolvedClass
             )
         }
     }
@@ -88,13 +126,15 @@ internal enum HLSAssetFactory {
         url: URL,
         targetHeight: Int?,
         configuration: HLSQualityPolicy.Configuration,
-        viewPixelSize: CGSize?
-    ) -> AVPlayerItem {
+        viewPixelSize: CGSize?,
+        networkClass: HLSNetworkClass
+    ) -> PreparedItem {
         guard let targetHeight, let wrappedURL = wrap(url) else {
             return makePassthroughItem(
                 url: url,
                 configuration: configuration,
-                viewPixelSize: viewPixelSize
+                viewPixelSize: viewPixelSize,
+                networkClass: networkClass
             )
         }
 
@@ -109,7 +149,11 @@ internal enum HLSAssetFactory {
         // We control the initial pick via manifest order; AVPlayer should
         // honor it rather than running its own bandwidth heuristic.
         item.startsOnFirstEligibleVariant = true
-        applyResolutionCap(item: item, configuration: configuration, viewPixelSize: viewPixelSize)
+        let maximumResolution = applyResolutionCap(
+            item: item,
+            configuration: configuration,
+            viewPixelSize: viewPixelSize
+        )
 
         // Tie the delegate's lifetime to the player item — when AVPlayer
         // releases the item, the delegate goes with it.
@@ -120,7 +164,15 @@ internal enum HLSAssetFactory {
             .OBJC_ASSOCIATION_RETAIN_NONATOMIC
         )
 
-        return item
+        return PreparedItem(
+            item: item,
+            context: PlayKit.PlaybackContext(
+                networkClass: networkClass.telemetryValue,
+                isManifestRewritten: true,
+                resolutionFloor: targetHeight,
+                maximumResolution: maximumResolution
+            )
+        )
     }
 
     /// Constrained / unknown path: hand AVPlayer the original HTTPS URL
@@ -131,23 +183,40 @@ internal enum HLSAssetFactory {
     private static func makePassthroughItem(
         url: URL,
         configuration: HLSQualityPolicy.Configuration,
-        viewPixelSize: CGSize?
-    ) -> AVPlayerItem {
+        viewPixelSize: CGSize?,
+        networkClass: HLSNetworkClass
+    ) -> PreparedItem {
         let item = AVPlayerItem(url: url)
         item.startsOnFirstEligibleVariant = false
-        applyResolutionCap(item: item, configuration: configuration, viewPixelSize: viewPixelSize)
-        return item
+        let maximumResolution = applyResolutionCap(
+            item: item,
+            configuration: configuration,
+            viewPixelSize: viewPixelSize
+        )
+
+        return PreparedItem(
+            item: item,
+            context: PlayKit.PlaybackContext(
+                networkClass: networkClass.telemetryValue,
+                isManifestRewritten: false,
+                maximumResolution: maximumResolution
+            )
+        )
     }
 
+    /// Returns the cap that was applied, or `nil` when the item was left
+    /// uncapped.
+    @discardableResult
     private static func applyResolutionCap(
         item: AVPlayerItem,
         configuration: HLSQualityPolicy.Configuration,
         viewPixelSize: CGSize?
-    ) {
+    ) -> CGSize? {
         guard configuration.capsResolutionToViewSize,
               let size = viewPixelSize,
-              size.width > 0, size.height > 0 else { return }
+              size.width > 0, size.height > 0 else { return nil }
         item.preferredMaximumResolution = size
+        return size
     }
 
     private static let loaderQueue = DispatchQueue(label: "PlayKit.HLSAssetLoader", qos: .userInitiated)

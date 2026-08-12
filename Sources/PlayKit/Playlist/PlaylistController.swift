@@ -105,6 +105,15 @@ public final class PlaylistController: ObservableObject, Identifiable {
     /// The HLS variant-selection policy applied to ``PlaylistItem/video`` items.
     public let qualityPolicy: HLSQualityPolicy
 
+    /// A label identifying the surface this playlist plays on — `"kicks"`,
+    /// `"hero"`, `"feed_preview"`.
+    ///
+    /// Forwarded on every playback notification as
+    /// ``PlayKit/NotificationPayload/surface``. Surfaces differ in quality
+    /// policy, buffer depth and autoplay behavior, so playback metrics that
+    /// aren't segmented by surface average unrelated things together.
+    public let surface: String?
+
     /// Creates a new controller.
     ///
     /// - Parameters:
@@ -121,6 +130,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
     ///     whether playback should commence automatically.
     ///   - qualityPolicy: The HLS quality-selection policy. Defaults to
     ///     ``HLSQualityPolicy/automatic``.
+    ///   - surface: A telemetry label for the surface this playlist plays on.
+    ///     Defaults to `nil`.
     public init(
         id: AnyHashable = UUID().uuidString,
         items: [PlaylistItem] = [],
@@ -129,7 +140,8 @@ public final class PlaylistController: ObservableObject, Identifiable {
         backwardBuffer: Int = 2,
         forwardBuffer: Int = 5,
         shouldPlayOnFocus: Bool = true,
-        qualityPolicy: HLSQualityPolicy = .automatic
+        qualityPolicy: HLSQualityPolicy = .automatic,
+        surface: String? = nil
     ) {
         // Start network-path monitoring now so the first video prepare
         // doesn't race the monitor's initial callback and misclassify as
@@ -143,6 +155,7 @@ public final class PlaylistController: ObservableObject, Identifiable {
         self.forwardBuffer = forwardBuffer
         self.shouldPlayOnFocus = shouldPlayOnFocus
         self.qualityPolicy = qualityPolicy
+        self.surface = surface
 
         if items.indices.contains(initialIndex) || items.isEmpty {
             self.currentIndex = initialIndex

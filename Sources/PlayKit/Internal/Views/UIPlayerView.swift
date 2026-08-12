@@ -19,6 +19,10 @@ final class UIPlayerView: UIView {
     internal var rate: Float = 1
     internal var qualityPolicy: HLSQualityPolicy = .automatic
 
+    /// Telemetry label of the surface this view belongs to, forwarded on every
+    /// notification so consumers can segment by where playback happened.
+    internal var surface: String?
+
     private(set) var item: PlaylistItem?
     private(set) var status = CurrentValueSubject<PlaylistItem.Status, Never>(.ready)
     private(set) var reachedEnd = PassthroughSubject<Void, Never>()
@@ -26,12 +30,26 @@ final class UIPlayerView: UIView {
     private(set) var durationInSeconds: TimeInterval = .zero
     private(set) var progressInSeconds = CurrentValueSubject<TimeInterval, Never>(.zero)
     private(set) var hasCaptions: Bool = false
-    
+
     private var statusSubscription: AnyCancellable?
     private var reachedEndSubscription: AnyCancellable?
     private var readyObserver: NSKeyValueObservation?
     private var timeObserverToken: Any?
     private var timeControlStatusSubscription: AnyCancellable?
+    private var presentationSizeSubscription: AnyCancellable?
+
+    /// Identifies the current video's lifecycle across every notification.
+    /// Regenerated on each `prepare`, so re-preparing the same URL is reported
+    /// as a distinct playback.
+    private var playbackId = UUID().uuidString
+
+    /// `true` between preparing a video item and reporting its teardown.
+    /// Guards against reporting a finish twice, or reporting one for an item
+    /// that was never a video.
+    private var isPlaybackReportable = false
+    private var hasStartedPlaying = false
+    private var hasReachedEnd = false
+    private var hasFailed = false
 
     private var imageLoadingTask: Task<Void, Never>?
     private var timerSubscription: AnyCancellable?
@@ -79,19 +97,33 @@ final class UIPlayerView: UIView {
             loadImage(from: url)
             
         case let .video(_, url, _):
-            let item = HLSAssetFactory.makePlayerItem(
+            let prepared = HLSAssetFactory.prepare(
                 url: url,
                 policy: qualityPolicy,
                 viewPixelSize: currentRenderPixelSize()
             )
-            player.replaceCurrentItem(with: item)
+            player.replaceCurrentItem(with: prepared.item)
             player.automaticallyWaitsToMinimizeStalling = true
+
+            playbackId = UUID().uuidString
+            isPlaybackReportable = true
+
+            NotificationCenter.default.post(
+                name: PlayKit.videoPrepareStartedNotification,
+                object: PlayKit.NotificationPayload(
+                    url: url,
+                    playbackId: playbackId,
+                    surface: surface,
+                    context: prepared.context
+                )
+            )
 
             registerStatusSubscription()
             registerTimeSubscription()
             registerReachedEndSubscription()
             registerTimeControlStatusSubscription()
-            
+            registerPresentationSizeSubscription()
+
         case let .custom(_, duration, _):
             durationInSeconds = duration
             progressInSeconds.value = .zero
@@ -116,7 +148,11 @@ final class UIPlayerView: UIView {
             
             NotificationCenter.default.post(
                 name: PlayKit.videoRequestedNotification,
-                object: PlayKit.NotificationPayload(url: url)
+                object: PlayKit.NotificationPayload(
+                    url: url,
+                    playbackId: playbackId,
+                    surface: surface
+                )
             )
             
             if playerLayer.isReadyForDisplay {
@@ -182,16 +218,24 @@ final class UIPlayerView: UIView {
     }
     
     func cancel() {
+        // Report before releasing the item — its access and error logs go with
+        // it, and they're the only record of what actually happened.
+        reportPlaybackFinishedIfNeeded()
+
         item = nil
         player.cancelPendingPrerolls()
         player.replaceCurrentItem(with: nil)
         readyObserver = nil
         statusSubscription?.cancel()
+        presentationSizeSubscription?.cancel()
         imageView.image = nil
         progressInSeconds.value = .zero
         durationInSeconds = .zero
         timerSubscription?.cancel()
         hasCaptions = false
+        hasStartedPlaying = false
+        hasReachedEnd = false
+        hasFailed = false
     }
     
     func setGravity(_ gravity: AVLayerVideoGravity) {
@@ -278,18 +322,25 @@ extension UIPlayerView {
                     self?.loadCaptionAvailability()
 
                     self?.status.value = .ready
-                    
+                    self?.reportVideoEvent(PlayKit.videoReadyNotification)
+
                 case .failed:
                     self?.status.value = .error
                     self?.durationInSeconds = self?.errorDuration ?? .zero
-                    
-                    if case let .video(_, url, _) = self?.item {
+                    self?.hasFailed = true
+
+                    if case let .video(_, url, _) = self?.item, let self {
                         NotificationCenter.default.post(
                             name: PlayKit.videoErrorNotification,
-                            object: PlayKit.NotificationPayload(url: url, error: self?.player.currentItem?.error)
+                            object: PlayKit.NotificationPayload(
+                                url: url,
+                                playbackId: playbackId,
+                                surface: surface,
+                                error: player.currentItem?.error
+                            )
                         )
                     }
-                    
+
                 default:
                     self?.status.value = .loading
                 }
@@ -328,8 +379,86 @@ extension UIPlayerView {
             .publisher(for: AVPlayerItem.didPlayToEndTimeNotification, object: player.currentItem)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
+                self?.hasReachedEnd = true
                 self?.reachedEnd.send()
             }
+    }
+
+    /// Reports each resolution `AVPlayer` settles on — the initial variant pick
+    /// and every ABR switch. `presentationSize` is the only observable that
+    /// reflects the variant actually being decoded, as opposed to the one the
+    /// manifest suggested.
+    private func registerPresentationSizeSubscription() {
+        presentationSizeSubscription?.cancel()
+
+        presentationSizeSubscription = player.publisher(for: \.currentItem?.presentationSize)
+            .compactMap { $0 }
+            .filter { $0 != .zero }
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] presentationSize in
+                guard let self, isPlaybackReportable,
+                      case let .video(_, url, _) = item else { return }
+
+                let indicatedBitrate = player.currentItem?
+                    .accessLog()?
+                    .events
+                    .last
+                    .flatMap { $0.indicatedBitrate > 0 ? $0.indicatedBitrate : nil }
+
+                NotificationCenter.default.post(
+                    name: PlayKit.videoVariantChangedNotification,
+                    object: PlayKit.NotificationPayload(
+                        url: url,
+                        playbackId: playbackId,
+                        surface: surface,
+                        variant: PlayKit.PlaybackVariant(
+                            presentationSize: presentationSize,
+                            indicatedBitrate: indicatedBitrate
+                        )
+                    )
+                )
+            }
+    }
+
+    /// Posts a lifecycle notification carrying only this playback's identity.
+    private func reportVideoEvent(_ name: Notification.Name) {
+        guard isPlaybackReportable, case let .video(_, url, _) = item else { return }
+
+        NotificationCenter.default.post(
+            name: name,
+            object: PlayKit.NotificationPayload(
+                url: url,
+                playbackId: playbackId,
+                surface: surface
+            )
+        )
+    }
+
+    /// Posts the teardown notification with the item's aggregated logs, once
+    /// per playback.
+    private func reportPlaybackFinishedIfNeeded() {
+        guard isPlaybackReportable, case let .video(_, url, _) = item else { return }
+        isPlaybackReportable = false
+
+        let outcome: PlayKit.NotificationPayload.Outcome = if hasFailed {
+            .failed
+        } else if hasReachedEnd {
+            .completed
+        } else {
+            .interrupted
+        }
+
+        NotificationCenter.default.post(
+            name: PlayKit.videoFinishedNotification,
+            object: PlayKit.NotificationPayload(
+                url: url,
+                playbackId: playbackId,
+                surface: surface,
+                metrics: player.currentItem.map(PlayKit.PlaybackMetrics.init(item:)),
+                outcome: outcome
+            )
+        )
     }
     
     private func registerTimeControlStatusSubscription() {
@@ -343,22 +472,36 @@ extension UIPlayerView {
                 switch status {
                 case .playing:
                     self.status.value = .ready
-                    
+
                     NotificationCenter.default.post(
                         name: PlayKit.videoStartedNotification,
-                        object: PlayKit.NotificationPayload(url: url)
+                        object: PlayKit.NotificationPayload(
+                            url: url,
+                            playbackId: playbackId,
+                            surface: surface
+                        )
                     )
-                    
+
+                    hasStartedPlaying = true
+
                 case .waitingToPlayAtSpecifiedRate:
                     if player.reasonForWaitingToPlay == AVPlayer.WaitingReason.toMinimizeStalls {
                         self.status.value = .loading
-                        
+
                         NotificationCenter.default.post(
                             name: PlayKit.videoStalledNotification,
-                            object: PlayKit.NotificationPayload(url: url)
+                            object: PlayKit.NotificationPayload(
+                                url: url,
+                                playbackId: playbackId,
+                                surface: surface,
+                                // Every cold start waits here once before the
+                                // first frame; only a wait after playback began
+                                // is a rebuffer the viewer experienced as one.
+                                isRebuffer: hasStartedPlaying
+                            )
                         )
                     }
-                    
+
                 default:
                     break
                 }

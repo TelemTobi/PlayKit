@@ -123,6 +123,7 @@ public final class UIPlaylistView: UIView {
         let policy = controller?.qualityPolicy ?? .automatic
         for player in controller?.players ?? [] {
             let playerView = UIPlayerView(player: player, qualityPolicy: policy)
+            playerView.surface = controller?.surface
             playerView.setGravity(gravity)
             players.append(playerView)
         }
